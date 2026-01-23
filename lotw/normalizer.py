@@ -5,7 +5,8 @@
 import re
 from typing import Dict, Any, Optional
 
-from utils.dxcc import get_dxcc_prefix
+from dxcc_lookup import get_dxcc_info as get_r150_info
+from cty_lookup import get_dxcc_from_cty
 
 
 class DataNormalizer:
@@ -101,19 +102,6 @@ class DataNormalizer:
                 return submode.upper()
         return mode
 
-    def get_ru_region(self, qso_data: Dict[str, str]) -> Optional[str]:
-        """
-        Определяет регион России из поля COUNTRY.
-        """
-        country = qso_data.get('COUNTRY', '').upper()
-        if 'ASIATIC RUSSIA' in country:
-            return 'ASIATIC RUSSIA'
-        elif 'EUROPEAN RUSSIA' in country:
-            return 'EUROPEAN RUSSIA'
-        elif 'KALININGRAD' in country:
-            return 'KALININGRAD'
-        return None
-
     def get_lotw_status(self, qso_data: Dict[str, str]) -> str:
         """
         Определяет статус подтверждения LoTW.
@@ -154,16 +142,27 @@ class DataNormalizer:
 
     def prepare_qso_data(self, qso_data: Dict[str, str], username: str = '') -> Dict[str, Any]:
         """Подготавливает все данные QSO для вставки/обновления"""
-        # Определяем DXCC: используем из данных или определяем по позывному
-        dxcc_from_data = qso_data.get('DXCC', '')
         callsign = qso_data.get('CALL', '').upper()
 
-        if dxcc_from_data:
-            dxcc = dxcc_from_data[:10]
-        elif callsign:
-            dxcc = get_dxcc_prefix(callsign)
+        # Определяем страну и континент из r150cty.dat
+        r150_info = get_r150_info(callsign) if callsign else None
+        if r150_info:
+            r150s = r150_info['country'].upper() if r150_info['country'] else None
+            continent = r150_info['continent'].upper() if r150_info['continent'] else None
         else:
-            dxcc = None
+            r150s = None
+            continent = None
+
+        # Определяем DXCC префикс из cty.dat
+        dxcc = get_dxcc_from_cty(callsign) if callsign else None
+
+        # Определяем ru_region из STATE для российских станций
+        # dxcc из cty.dat для России: UA, UA2, UA9
+        ru_region = None
+        if dxcc in ('UA', 'UA2', 'UA9'):
+            state = qso_data.get('STATE', '').upper()
+            if state:
+                ru_region = state
 
         return {
             'band': self.normalize_band(qso_data.get('BAND', '')),
@@ -174,15 +173,15 @@ class DataNormalizer:
             'prop_mode': qso_data.get('PROP_MODE', ''),
             'sat_name': qso_data.get('SAT_NAME', ''),
             'lotw': self.get_lotw_status(qso_data),
-            'r150s': qso_data.get('COUNTRY', ''),
+            'r150s': r150s,
             'gridsquare': qso_data.get('GRIDSQUARE', ''),
             'my_gridsquare': qso_data.get('MY_GRIDSQUARE', ''),
             'rst_sent': qso_data.get('RST_SENT', ''),
             'rst_rcvd': qso_data.get('RST_RCVD', ''),
-            'ru_region': self.get_ru_region(qso_data),
+            'ru_region': ru_region,
             'cqz': self.normalize_cqz(qso_data.get('CQZ', '')),
             'ituz': self.normalize_ituz(qso_data.get('ITUZ', '')),
-            'continent': qso_data.get('CONT', '')[:2] if qso_data.get('CONT') else None,
+            'continent': continent,
             'dxcc': dxcc,
             'callsign': callsign,
             'my_callsign': username
