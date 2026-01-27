@@ -46,10 +46,12 @@ class LoTWAPI:
                 params['qso_startdate'] = '1990-01-01'
                 self.logger.info("Запрос всех QSO (lotw_lastsync не задан)")
 
-            if callsign:
-                params['qso_owncall'] = callsign
-
             self.logger.info(f"Запрос к LoTW API для {callsign}")
+
+            # Логируем URL и параметры для отладки
+            from urllib.parse import urlencode
+            full_url = f"{login_url}?{urlencode(params)}"
+            self.logger.debug(f"URL запроса: {full_url}")
 
             response = requests.get(login_url, params=params, timeout=30)
 

@@ -247,7 +247,7 @@ class DatabaseOperations:
             conn.close()
 
     def process_qso_batch(self, qso_data_list: List[Dict[str, str]], my_callsign: str, user_id: int) -> Dict[str, Any]:
-        """Обрабатывает пакет QSO"""
+        """Обрабатывает пакет QSO с batch-запросами"""
         conn = self.db_conn.get_connection()
         if not conn:
             return {
@@ -256,46 +256,56 @@ class DatabaseOperations:
             }
 
         try:
-            added = 0
-            updated = 0
-            skipped = 0
-            errors = 0
-            duplicates = 0
-
             self.logger.info(f"🔄 Обработка {len(qso_data_list)} QSO (user_id={user_id})")
 
-            for i, qso_data in enumerate(qso_data_list, 1):
+            # Нормализуем все данные заранее
+            normalized_list = []
+            skipped = 0
+
+            for qso_data in qso_data_list:
                 # Проверка обязательных полей
                 if not all([qso_data.get('CALL'), qso_data.get('QSO_DATE'),
                            qso_data.get('TIME_ON'), qso_data.get('BAND')]):
-                    self.logger.warning(f"⚠️ QSO #{i} пропущена: отсутствуют обязательные поля")
                     skipped += 1
                     continue
 
-                # Добавляем my_callsign в данные QSO для поиска
-                qso_data['STATION_CALLSIGN'] = my_callsign
+                normalized = self.normalizer.prepare_qso_data(qso_data, my_callsign)
+                normalized_list.append(normalized)
 
-                # Ищем существующую QSO
-                existing_qso = self.find_existing_qso(qso_data, user_id)
+            if not normalized_list:
+                return {
+                    'success': True,
+                    'user_id': user_id,
+                    'my_callsign': my_callsign,
+                    'total_qso': len(qso_data_list),
+                    'qso_added': 0,
+                    'qso_updated': 0,
+                    'qso_skipped': skipped,
+                    'message': 'Нет данных для обработки'
+                }
 
-                if existing_qso:
-                    # Обновляем существующую QSO
-                    if self.update_qso(existing_qso['id'], qso_data):
-                        updated += 1
-                    else:
-                        errors += 1
-                else:
-                    # Добавляем новую QSO
-                    if self.insert_qso(qso_data, my_callsign, user_id):
-                        added += 1
-                    else:
-                        errors += 1
+            # Batch поиск существующих QSO
+            existing_qsos = self._find_existing_batch(normalized_list, user_id, conn)
+            existing_keys = set((q['callsign'], q['date'], q['band'], q['mode']) for q in existing_qsos)
 
-                # Логируем прогресс
-                if i % 10 == 0 or i == len(qso_data_list):
-                    self.logger.info(f"📊 Прогресс: {i}/{len(qso_data_list)} QSO обработано")
+            # Разделяем на новые и существующие
+            new_qsos = [q for q in normalized_list if (q['callsign'], q['date'], q['band'], q['mode']) not in existing_keys]
+            update_qsos = [q for q in normalized_list if (q['callsign'], q['date'], q['band'], q['mode']) in existing_keys]
 
-            result = {
+            added = 0
+            updated = 0
+
+            # Batch insert новых
+            if new_qsos:
+                added = self._batch_insert(new_qsos, user_id, conn)
+
+            # Batch update существующих
+            if update_qsos:
+                updated = self._batch_update(update_qsos, existing_qsos, conn)
+
+            self.logger.info(f"✅ Обработка завершена: добавлено {added}, обновлено {updated}")
+
+            return {
                 'success': True,
                 'user_id': user_id,
                 'my_callsign': my_callsign,
@@ -303,14 +313,8 @@ class DatabaseOperations:
                 'qso_added': added,
                 'qso_updated': updated,
                 'qso_skipped': skipped,
-                'errors': errors,
-                'duplicates': duplicates,
                 'message': f'Обработано {len(qso_data_list)} QSO'
             }
-
-            self.logger.info(f"✅ Обработка завершена: добавлено {added}, обновлено {updated}")
-
-            return result
 
         except Exception as e:
             self.logger.error(f"❌ Критическая ошибка при обработке данных: {e}")
@@ -321,6 +325,132 @@ class DatabaseOperations:
             }
         finally:
             conn.close()
+
+    def _find_existing_batch(self, normalized_list: List[Dict], user_id: int, conn) -> List[Dict]:
+        """Batch поиск существующих QSO"""
+        if not normalized_list:
+            return []
+
+        try:
+            with conn.cursor() as cur:
+                # Формируем VALUES с явным приведением типов для date и time
+                values = []
+                params = [user_id]
+                for q in normalized_list:
+                    values.append("(%s, %s::date, %s, %s, %s::time)")
+                    params.extend([q['callsign'], q['date'], q['band'], q['mode'], q['time'][:5]])
+
+                query = f"""
+                    SELECT id, callsign, date::text, band, mode, time::text
+                    FROM tlog_qso
+                    WHERE user_id = %s
+                    AND (callsign, date, band, mode, time) IN (VALUES {', '.join(values)})
+                """
+
+                cur.execute(query, params)
+                rows = cur.fetchall()
+
+                # Преобразуем результат в список словарей
+                result = []
+                for row in rows:
+                    result.append({
+                        'id': row[0],
+                        'callsign': row[1],
+                        'date': row[2],
+                        'band': row[3],
+                        'mode': row[4],
+                        'time': row[5]
+                    })
+                return result
+
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка batch поиска: {e}")
+            return []
+
+    def _batch_insert(self, normalized_list: List[Dict], user_id: int, conn) -> int:
+        """Batch вставка новых QSO"""
+        if not normalized_list:
+            return 0
+
+        try:
+            with conn.cursor() as cur:
+                values = []
+                params = []
+                for q in normalized_list:
+                    record_id = str(uuid.uuid4())
+                    # date нужно привести к строке для корректной вставки
+                    date_str = str(q['date']) if q['date'] else None
+                    values.append("(%s::uuid, %s, %s, %s, %s, %s, %s::date, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())")
+                    params.extend([
+                        record_id, q['callsign'], q['my_callsign'],
+                        q['band'], q['frequency'], q['mode'],
+                        date_str, q['time'],
+                        q['prop_mode'], q['sat_name'], q['lotw'], 'N', q['r150s'],
+                        q['gridsquare'], q['my_gridsquare'], q['rst_sent'], q['rst_rcvd'],
+                        q['ru_region'], q['cqz'], q['ituz'], user_id,
+                        q['continent'], q['dxcc'], None
+                    ])
+
+                query = f"""
+                    INSERT INTO tlog_qso (
+                        id, callsign, my_callsign, band, frequency, mode,
+                        date, time, prop_mode, sat_name, lotw, paper_qsl, r150s,
+                        gridsquare, my_gridsquare, rst_sent, rst_rcvd,
+                        ru_region, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
+                        created_at, updated_at
+                    ) VALUES {', '.join(values)}
+                """
+
+                cur.execute(query, params)
+                conn.commit()
+                return len(normalized_list)
+
+        except psycopg2.errors.UniqueViolation:
+            conn.rollback()
+            self.logger.warning(f"⚠️ Дубликаты при batch insert")
+            return 0
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"❌ Ошибка batch insert: {e}")
+            return 0
+
+    def _batch_update(self, normalized_list: List[Dict], existing_qsos: List[Dict], conn) -> int:
+        """Batch обновление существующих QSO"""
+        if not normalized_list:
+            return 0
+
+        try:
+            # Создаем словарь существующих QSO для быстрого поиска
+            # Ключ: (callsign, date, band, mode, time[:5])
+            existing_map = {}
+            for q in existing_qsos:
+                time_str = str(q['time'])[:5] if q['time'] else ''
+                key = (q['callsign'], str(q['date']), q['band'], q['mode'], time_str)
+                existing_map[key] = q['id']
+
+            with conn.cursor() as cur:
+                updated = 0
+                for q in normalized_list:
+                    key = (q['callsign'], str(q['date']), q['band'], q['mode'], q['time'][:5])
+                    qso_id = existing_map.get(key)
+
+                    if qso_id:
+                        query = """
+                            UPDATE tlog_qso SET
+                                lotw = %s,
+                                updated_at = NOW()
+                            WHERE id = %s::uuid
+                        """
+                        cur.execute(query, (q['lotw'], qso_id))
+                        updated += 1
+
+                conn.commit()
+                return updated
+
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"❌ Ошибка batch update: {e}")
+            return 0
 
     def update_lotw_lastsync(self, user_id: int, created_at: str = None) -> bool:
         """
