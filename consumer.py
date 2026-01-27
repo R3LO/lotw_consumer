@@ -3,7 +3,6 @@
 """
 
 import time
-import threading
 import sys
 from typing import Dict, Any
 
@@ -116,19 +115,6 @@ class LoTWConsumer:
         self.logger.info("[WAIT] Ожидание задач синхронизации... (Ctrl+C для остановки)")
 
         try:
-            # Запуск потока статистики
-            def stats_timer(running_ref):
-                while running_ref:
-                    time.sleep(60)
-                    if running_ref:
-                        try:
-                            self.stats.print_stats()
-                        except Exception:
-                            pass
-
-            stats_thread = threading.Thread(target=stats_timer, args=(self.running,), daemon=True)
-            stats_thread.start()
-
             # Запуск прослушивания
             self.logger.info("[CONSUME] Запуск прослушивания очереди...")
             self.rabbitmq.start_consuming(
@@ -149,7 +135,6 @@ class LoTWConsumer:
                     self.rabbitmq.close()
                 except Exception:
                     pass
-            self.print_stats(detailed=True)
             self.logger.info("[DONE] Consumer завершен")
 
 
