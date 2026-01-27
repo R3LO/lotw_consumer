@@ -1,0 +1,182 @@
+[
+  {
+    "task_id": "lotw_1769511091_R3LO",
+    "task_type": "lotw_sync",
+    "callsign": "R3LO",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_R3LO/1",
+    "task_type": "lotw_sync",
+    "callsign": "R3LO/1",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_R3LO/P",
+    "task_type": "lotw_sync",
+    "callsign": "R3LO/P",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_RK3LO",
+    "task_type": "lotw_sync",
+    "callsign": "RK3LO",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_RK3LO/P",
+    "task_type": "lotw_sync",
+    "callsign": "RK3LO/P",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_RN3LA",
+    "task_type": "lotw_sync",
+    "callsign": "RN3LA",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_RN3LA/M",
+    "task_type": "lotw_sync",
+    "callsign": "RN3LA/M",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_RN3LA/P",
+    "task_type": "lotw_sync",
+    "callsign": "RN3LA/P",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_RW2L",
+    "task_type": "lotw_sync",
+    "callsign": "RW2L",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_RW2L/P",
+    "task_type": "lotw_sync",
+    "callsign": "RW2L/P",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_UA3LPF",
+    "task_type": "lotw_sync",
+    "callsign": "UA3LPF",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_UA3LPF/1/M",
+    "task_type": "lotw_sync",
+    "callsign": "UA3LPF/1/M",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_UA3LPF/3",
+    "task_type": "lotw_sync",
+    "callsign": "UA3LPF/3",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_UA3LPF/3/M",
+    "task_type": "lotw_sync",
+    "callsign": "UA3LPF/3/M",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_UA3LPF/3/P",
+    "task_type": "lotw_sync",
+    "callsign": "UA3LPF/3/P",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_UA3LPF/M",
+    "task_type": "lotw_sync",
+    "callsign": "UA3LPF/M",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_UA3LPF/P",
+    "task_type": "lotw_sync",
+    "callsign": "UA3LPF/P",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_1769511091_UA6PEY",
+    "task_type": "lotw_sync",
+    "callsign": "UA6PEY",
+    "username": "R3LO",
+    "password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  }
+]

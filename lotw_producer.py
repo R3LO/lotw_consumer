@@ -181,7 +181,7 @@ class LoTWProducer:
             if not conn:
                 return {}
 
-            # Получаем все записи из таблицы с проверкой поля lotw_chk_pass
+            # Получаем все записи из таблицы с проверкой: lotw_chk_pass = TRUE
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT
@@ -190,35 +190,28 @@ class LoTWProducer:
                         my_callsigns,
                         lotw_user,
                         lotw_password,
-                        lotw_chk_pass
+                        lotw_lastsync
                     FROM tlog_radioprofile
                     WHERE lotw_user IS NOT NULL
                     AND lotw_user != ''
                     AND lotw_password IS NOT NULL
                     AND lotw_password != ''
-                    AND (lotw_chk_pass IS NULL OR lotw_chk_pass = TRUE)
+                    AND lotw_chk_pass = TRUE
                     ORDER BY id ASC
                 """)
                 rows = cur.fetchall()
 
                 total_rows = len(rows)
-                skipped_due_to_false = 0
 
                 for row in rows:
-                    user_id, callsign_data, my_callsigns, lotw_user, lotw_password, lotw_chk_pass = row
-
-                    # Проверяем значение lotw_chk_pass
-                    if lotw_chk_pass is False:
-                        skipped_due_to_false += 1
-                        self.logger.debug(f"Пропущен позывной: lotw_chk_pass = FALSE для user_id {user_id}")
-                        continue
+                    user_id, callsign_data, my_callsigns, lotw_user, lotw_password, lotw_lastsync = row
 
                     # Создаем словарь с учетными данными
                     credentials = {
                         "lotw_user": lotw_user,
                         "lotw_password": lotw_password,
                         "user_id": user_id,
-                        "lotw_chk_pass": lotw_chk_pass if lotw_chk_pass is not None else True
+                        "lotw_lastsync": lotw_lastsync
                     }
 
                     # Обрабатываем основной позывной
@@ -235,12 +228,7 @@ class LoTWProducer:
                             if callsign_name:
                                 callsign_dict[callsign_name.upper()] = credentials
 
-            self.logger.info(f"Получено {len(callsign_dict)} позывных из базы данных")
-            if skipped_due_to_false > 0:
-                self.logger.info(f"Пропущено {skipped_due_to_false} позывных (lotw_chk_pass = FALSE)")
-            if total_rows > 0:
-                percentage = (len(callsign_dict) / total_rows) * 100
-                self.logger.info(f"Используется {percentage:.1f}% записей из базы")
+            self.logger.info(f"Получено {len(callsign_dict)} позывных из базы данных (lotw_chk_pass = TRUE)")
 
             # Дополнительная информация для отладки
             if callsign_dict:
@@ -336,12 +324,8 @@ class LoTWProducer:
             'username': credentials['lotw_user'],
             'password': credentials['lotw_password'],
             'user_id': credentials['user_id'],
-            'metadata': {
-                'lotw_chk_pass': credentials.get('lotw_chk_pass', True)
-            },
-            'created_at': datetime.now().isoformat(),
-            'retry_count': 0,
-            'max_retries': MAX_RETRIES
+            'lotw_lastsync': credentials.get('lotw_lastsync'),
+            'created_at': datetime.now().date().isoformat()
         }
 
         for attempt in range(MAX_RETRIES):
@@ -356,7 +340,7 @@ class LoTWProducer:
                     )
                 )
 
-                self.logger.info(f"Задача отправлена: {callsign} (user_id: {credentials['user_id']}, login: {credentials['lotw_user'][:3]}***, chk_pass: {credentials.get('lotw_chk_pass', True)})")
+                self.logger.info(f"Задача отправлена: {callsign} (user_id: {credentials['user_id']}, login: {credentials['lotw_user'][:3]}***, lastsync: {credentials.get('lotw_lastsync')})")
                 return True
 
             except Exception as e:
@@ -381,8 +365,7 @@ class LoTWProducer:
 
         if not callsigns:
             self.logger.warning("Не найдено позывных для синхронизации")
-            self.logger.info("Проверьте наличие записей в таблице tlog_radioprofile с заполненными lotw_user и lotw_password")
-            self.logger.info("И проверьте, что поле lotw_chk_pass не равно FALSE")
+            self.logger.info("Проверьте наличие записей в таблице tlog_radioprofile с заполненными lotw_user, lotw_password и lotw_chk_pass = TRUE")
             return None
 
         total = len(callsigns)
@@ -497,29 +480,17 @@ class LoTWProducer:
             self.logger.info("Проверьте:")
             self.logger.info("1. Таблица tlog_radioprofile существует")
             self.logger.info("2. Поля lotw_user и lotw_password заполнены")
-            self.logger.info("3. Поле lotw_chk_pass не равно FALSE (должно быть TRUE или NULL)")
+            self.logger.info("3. Поле lotw_chk_pass = TRUE")
             return False
 
-        self.logger.info(f"Найдено {len(callsigns)} позывных:")
+        self.logger.info(f"Найдено {len(callsigns)} позывных (lotw_chk_pass = TRUE):")
 
-        # Показываем первые 10 позывных с логинами и статусом lotw_chk_pass
+        # Показываем первые 10 позывных с логинами
         for i, (callsign, credentials) in enumerate(list(callsigns.items())[:10], 1):
-            chk_pass = credentials.get('lotw_chk_pass', True)
-            chk_pass_str = "TRUE" if chk_pass else "FALSE"
-            self.logger.info(f"   {i}. {callsign} - Логин: {credentials['lotw_user']} (chk_pass: {chk_pass_str})")
+            self.logger.info(f"   {i}. {callsign} - Логин: {credentials['lotw_user']}")
 
         if len(callsigns) > 10:
             self.logger.info(f"   ... и еще {len(callsigns) - 10} позывных")
-
-        # Статистика по lotw_chk_pass
-        chk_pass_true = sum(1 for c in callsigns.values() if c.get('lotw_chk_pass', True))
-        chk_pass_null = sum(1 for c in callsigns.values() if c.get('lotw_chk_pass') is None)
-        chk_pass_false = sum(1 for c in callsigns.values() if c.get('lotw_chk_pass') is False)
-
-        self.logger.info(f"Статистика по lotw_chk_pass:")
-        self.logger.info(f"   TRUE: {chk_pass_true}")
-        self.logger.info(f"   NULL: {chk_pass_null}")
-        self.logger.info(f"   FALSE: {chk_pass_false}")
 
         return True
 
