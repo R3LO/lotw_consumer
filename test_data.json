@@ -1,0 +1,22 @@
+[
+  {
+    "task_id": "lotw_test_001",
+    "task_type": "lotw_sync",
+    "callsign": "R3LO",
+    "username": "R3LO",
+    "password": "secret123",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  },
+  {
+    "task_id": "lotw_test_002",
+    "task_type": "lotw_sync",
+    "callsign": "R3LO2",
+    "username": "R3LO",
+    "password": "secret123",
+    "user_id": 1,
+    "lotw_lastsync": null,
+    "created_at": "2026-01-27"
+  }
+]

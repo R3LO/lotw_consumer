@@ -17,7 +17,7 @@ from typing import Dict, List, Any, Optional, Tuple
 
 # Импортируем конфигурацию
 from config import (
-    RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_QUEUE, RABBITMQ_USER, RABBITMQ_PASSWORD,
+    RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_QUEUE, RABBITMQ_EXCHANGE, RABBITMQ_USER, RABBITMQ_PASSWORD,
     DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_SCHEMA,
     BATCH_DELAY, MAX_RETRIES, LOG_LEVEL, LOG_FILE
 )
@@ -331,7 +331,7 @@ class LoTWProducer:
         for attempt in range(MAX_RETRIES):
             try:
                 self.channel.basic_publish(
-                    exchange='',
+                    exchange=RABBITMQ_EXCHANGE,
                     routing_key=RABBITMQ_QUEUE,
                     body=json.dumps(task, ensure_ascii=False),
                     properties=pika.BasicProperties(

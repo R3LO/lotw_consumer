@@ -49,7 +49,7 @@ class DatabaseOperations:
         Ищет существующую QSO в базе данных.
         """
         callsign = qso_data.get('CALL', '').upper()
-        my_callsign = qso_data.get('STATION_CALLSIGN', '') or 'R3LO'
+        my_callsign = qso_data.get('STATION_CALLSIGN', '')
         date_str = self.normalizer.normalize_date(qso_data.get('QSO_DATE', ''))
         time_str = self.normalizer.normalize_time(qso_data.get('TIME_ON', ''))
         band = self.normalizer.normalize_band(qso_data.get('BAND', ''))
@@ -319,5 +319,48 @@ class DatabaseOperations:
                 'error': str(e),
                 'message': 'Критическая ошибка при обработке данных'
             }
+        finally:
+            conn.close()
+
+    def update_lotw_lastsync(self, user_id: int, created_at: str = None) -> bool:
+        """
+        Обновляет поле lotw_lastsync в таблице tlog_radioprofile.
+
+        Args:
+            user_id: ID пользователя
+            created_at: Дата синхронизации (по умолчанию текущая дата)
+
+        Returns:
+            bool: Успех операции
+        """
+        if created_at is None:
+            from datetime import date
+            created_at = date.today().isoformat()
+
+        conn = self.db_conn.get_connection()
+        if not conn:
+            return False
+
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE tlog_radioprofile
+                    SET lotw_lastsync = %s
+                    WHERE id = %s
+                """, (created_at, user_id))
+
+                conn.commit()
+
+                if cur.rowcount > 0:
+                    self.logger.info(f"✅ lotw_lastsync обновлен для user_id={user_id}: {created_at}")
+                    return True
+                else:
+                    self.logger.warning(f"⚠️ Не найдена запись tlog_radioprofile для user_id={user_id}")
+                    return False
+
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка обновления lotw_lastsync: {e}")
+            conn.rollback()
+            return False
         finally:
             conn.close()

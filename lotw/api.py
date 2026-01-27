@@ -15,9 +15,15 @@ class LoTWAPI:
         self.logger = logger
         self.parser = ADIFParser(logger)
 
-    def get_lotw_data(self, callsign: str, username: str, password: str) -> Dict[str, Any]:
+    def get_lotw_data(self, callsign: str, username: str, password: str, lotw_lastsync: str = None) -> Dict[str, Any]:
         """
         Получает данные из LoTW API и парсит ADIF формат.
+
+        Args:
+            callsign: Позывной для фильтрации (опционально)
+            username: Логин LoTW
+            password: Пароль LoTW
+            lotw_lastsync: Дата последней синхронизации (для запроса только новых QSO)
         """
         try:
             login_url = "https://lotw.arrl.org/lotwuser/lotwreport.adi"
@@ -28,8 +34,16 @@ class LoTWAPI:
                 'qso_query': '1',
                 'qso_qsl': 'yes',
                 'qso_qsldetail': 'yes',
-                'qso_startdate': '1990-01-01',
+                'qso_withown': 'yes',
             }
+
+            # Используем lotw_lastsync для запроса только новых QSO с этой даты
+            if lotw_lastsync:
+                params['qso_qslsince'] = lotw_lastsync
+                self.logger.info(f"Запрос QSO с даты {lotw_lastsync}")
+            else:
+                params['qso_startdate'] = '1990-01-01'
+                self.logger.info("Запрос всех QSO (lotw_lastsync не задан)")
 
             if callsign:
                 params['callsign'] = callsign

@@ -7,8 +7,10 @@ import socket
 from typing import Callable, Optional
 
 from config import (
-    RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_QUEUE,
-    RABBITMQ_USER, RABBITMQ_PASSWORD
+    RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_QUEUE, RABBITMQ_EXCHANGE,
+    RABBITMQ_USER, RABBITMQ_PASSWORD,
+    RABBITMQ_DELAYED_QUEUE, RABBITMQ_DELAYED_EXCHANGE, RABBITMQ_DLX_EXCHANGE,
+    RABBITMQ_HEARTBEAT, RABBITMQ_TIMEOUT
 )
 
 
@@ -47,6 +49,7 @@ class RabbitMQConnection:
             self.logger.info(f"   Хост: {RABBITMQ_HOST}:{RABBITMQ_PORT}")
             self.logger.info(f"   Пользователь: {RABBITMQ_USER}")
             self.logger.info(f"   Очередь: {RABBITMQ_QUEUE}")
+            self.logger.info(f"   Exchange: {RABBITMQ_EXCHANGE}")
 
             if not self.check_connectivity():
                 return False
@@ -56,8 +59,8 @@ class RabbitMQConnection:
                 host=RABBITMQ_HOST,
                 port=RABBITMQ_PORT,
                 credentials=credentials,
-                heartbeat=600,
-                blocked_connection_timeout=300,
+                heartbeat=RABBITMQ_HEARTBEAT,
+                blocked_connection_timeout=RABBITMQ_TIMEOUT,
                 connection_attempts=3,
                 retry_delay=5
             )
@@ -65,22 +68,80 @@ class RabbitMQConnection:
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
 
-            # Объявляем основную очередь
+            # 1. Создаем DLX Exchange (для перенаправления из отложенной очереди)
+            self.channel.exchange_declare(
+                exchange=RABBITMQ_DLX_EXCHANGE,
+                exchange_type='direct',
+                durable=True
+            )
+            self.logger.debug(f"Создан DLX Exchange: {RABBITMQ_DLX_EXCHANGE}")
+
+            # 2. Создаем основную очередь с привязкой к DLX
             self.channel.queue_declare(
                 queue=RABBITMQ_QUEUE,
+                durable=True,
+                arguments={
+                    'x-dead-letter-exchange': RABBITMQ_DLX_EXCHANGE,
+                    'x-dead-letter-routing-key': RABBITMQ_QUEUE
+                }
+            )
+            self.logger.debug(f"Создана очередь: {RABBITMQ_QUEUE}")
+
+            # 3. Создаем основной exchange
+            self.channel.exchange_declare(
+                exchange=RABBITMQ_EXCHANGE,
+                exchange_type='direct',
                 durable=True
             )
+            self.logger.debug(f"Создан Exchange: {RABBITMQ_EXCHANGE}")
 
-            # Объявляем очередь ошибок
-            dlq_name = f"{RABBITMQ_QUEUE}_dlq"
+            # 4. Привязываем основную очередь к основному exchange
+            self.channel.queue_bind(
+                queue=RABBITMQ_QUEUE,
+                exchange=RABBITMQ_EXCHANGE,
+                routing_key=RABBITMQ_QUEUE
+            )
+            self.logger.debug(f"Привязка: {RABBITMQ_QUEUE} -> {RABBITMQ_EXCHANGE}")
+
+            # 5. Создаем отложенную очередь с TTL
+            from config import RETRY_DELAY_MS
             self.channel.queue_declare(
-                queue=dlq_name,
+                queue=RABBITMQ_DELAYED_QUEUE,
+                durable=True,
+                arguments={
+                    'x-dead-letter-exchange': RABBITMQ_DLX_EXCHANGE,
+                    'x-dead-letter-routing-key': RABBITMQ_QUEUE,
+                    'x-message-ttl': RETRY_DELAY_MS
+                }
+            )
+            self.logger.debug(f"Создана отложенная очередь: {RABBITMQ_DELAYED_QUEUE}")
+
+            # 6. Создаем delayed exchange
+            self.channel.exchange_declare(
+                exchange=RABBITMQ_DELAYED_EXCHANGE,
+                exchange_type='direct',
                 durable=True
             )
-            self.logger.debug(f"Очередь ошибок: {dlq_name}")
+            self.logger.debug(f"Создан Delayed Exchange: {RABBITMQ_DELAYED_EXCHANGE}")
 
-            # Настраиваем QoS
-            self.channel.basic_qos(prefetch_count=self.max_workers)
+            # 7. Привязываем delayed exchange к отложенной очереди
+            self.channel.queue_bind(
+                queue=RABBITMQ_DELAYED_QUEUE,
+                exchange=RABBITMQ_DELAYED_EXCHANGE,
+                routing_key='delayed'
+            )
+            self.logger.debug(f"Привязка: {RABBITMQ_DELAYED_QUEUE} -> {RABBITMQ_DELAYED_EXCHANGE}")
+
+            # 8. Привязываем DLX exchange к основной очереди
+            self.channel.queue_bind(
+                queue=RABBITMQ_QUEUE,
+                exchange=RABBITMQ_DLX_EXCHANGE,
+                routing_key=RABBITMQ_QUEUE
+            )
+            self.logger.debug(f"Привязка DLX: {RABBITMQ_QUEUE} -> {RABBITMQ_DLX_EXCHANGE}")
+
+            # Настраиваем QoS - обрабатываем по 1 сообщению за раз
+            self.channel.basic_qos(prefetch_count=1)
 
             self.logger.info(f"Успешно подключено к RabbitMQ")
             self.logger.info(f"Прослушиваю очередь: {RABBITMQ_QUEUE}")

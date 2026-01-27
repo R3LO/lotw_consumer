@@ -12,9 +12,24 @@ load_dotenv()
 # RabbitMQ настройки
 RABBITMQ_HOST = os.getenv('RABBITMQ_HOST', '192.168.31.5')
 RABBITMQ_PORT = int(os.getenv('RABBITMQ_PORT', '5672'))
-RABBITMQ_QUEUE = os.getenv('RABBITMQ_QUEUE', 'lotw_sync_queue')
 RABBITMQ_USER = os.getenv('RABBITMQ_USER', 'admin')
 RABBITMQ_PASSWORD = os.getenv('RABBITMQ_PASSWORD', '603502')
+
+# Таймауты RabbitMQ (в секундах)
+RABBITMQ_HEARTBEAT = 600  # 10 минут
+RABBITMQ_TIMEOUT = 600    # 10 минут
+
+# Основная очередь и exchange
+RABBITMQ_QUEUE = os.getenv('RABBITMQ_QUEUE', 'lotw_sync_queue')
+RABBITMQ_EXCHANGE = os.getenv('RABBITMQ_EXCHANGE', 'lotw_exchange')
+
+# Delayed очередь для повторных попыток (DLX)
+RABBITMQ_DELAYED_QUEUE = os.getenv('RABBITMQ_DELAYED_QUEUE', 'lotw_delayed_queue')
+RABBITMQ_DELAYED_EXCHANGE = os.getenv('RABBITMQ_DELAYED_EXCHANGE', 'lotw_delayed_exchange')
+RABBITMQ_DLX_EXCHANGE = os.getenv('RABBITMQ_DLX_EXCHANGE', 'lotw_dlx_exchange')
+
+# Время задержки для повторных попыток (45 минут в мс)
+RETRY_DELAY_MS = int(os.getenv('RETRY_DELAY_MS', '2700000'))  # 45 минут = 2700000 мс
 
 # PostgreSQL настройки
 DB_HOST = os.getenv('DB_HOST', '192.168.31.5')
