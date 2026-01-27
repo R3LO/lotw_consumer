@@ -185,5 +185,5 @@ class DataNormalizer:
             'continent': continent,
             'dxcc': dxcc,
             'callsign': callsign,
-            'my_callsign': username
+            'my_callsign': my_callsign
         }
