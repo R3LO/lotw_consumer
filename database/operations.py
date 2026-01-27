@@ -327,33 +327,33 @@ class DatabaseOperations:
             conn.close()
 
     def _find_existing_batch(self, normalized_list: List[Dict], user_id: int, conn) -> List[Dict]:
-        """Batch поиск существующих QSO"""
+        """Batch поиск существующих QSO с погрешностью времени ±5 минут"""
         if not normalized_list:
             return []
 
         try:
             with conn.cursor() as cur:
-                # Формируем VALUES с явным приведением типов для date и time
+                # Формируем VALUES для поиска по callsign, date, band, mode (без time)
                 values = []
                 params = [user_id]
                 for q in normalized_list:
-                    values.append("(%s, %s::date, %s, %s, %s::time)")
-                    params.extend([q['callsign'], q['date'], q['band'], q['mode'], q['time'][:5]])
+                    values.append("(%s, %s::date, %s, %s)")
+                    params.extend([q['callsign'], q['date'], q['band'], q['mode']])
 
                 query = f"""
                     SELECT id, callsign, date::text, band, mode, time::text
                     FROM tlog_qso
                     WHERE user_id = %s
-                    AND (callsign, date, band, mode, time) IN (VALUES {', '.join(values)})
+                    AND (callsign, date, band, mode) IN (VALUES {', '.join(values)})
                 """
 
                 cur.execute(query, params)
                 rows = cur.fetchall()
 
                 # Преобразуем результат в список словарей
-                result = []
+                existing_qsos = []
                 for row in rows:
-                    result.append({
+                    existing_qsos.append({
                         'id': row[0],
                         'callsign': row[1],
                         'date': row[2],
@@ -361,7 +361,38 @@ class DatabaseOperations:
                         'mode': row[4],
                         'time': row[5]
                     })
-                return result
+
+                # Фильтруем по времени с погрешностью ±5 минут (300 секунд)
+                filtered = []
+                for new_q in normalized_list:
+                    new_time_str = new_q['time'][:5]
+                    try:
+                        # Конвертируем время в секунды
+                        h, m = map(int, new_time_str.split(':'))
+                        new_seconds = h * 3600 + m * 60
+                    except Exception:
+                        continue
+
+                    for existing in existing_qsos:
+                        # Проверяем совпадение по основным полям
+                        if (new_q['callsign'] == existing['callsign'] and
+                            str(new_q['date']) == str(existing['date']) and
+                            new_q['band'] == existing['band'] and
+                            new_q['mode'] == existing['mode']):
+
+                            # Проверяем время с погрешностью ±5 минут
+                            try:
+                                ex_time = existing['time'][:5]
+                                h, m = map(int, ex_time.split(':'))
+                                existing_seconds = h * 3600 + m * 60
+                                time_diff = abs(new_seconds - existing_seconds)
+                                if time_diff <= 300:  # 5 минут = 300 секунд
+                                    filtered.append(existing)
+                                    break
+                            except Exception:
+                                continue
+
+                return filtered
 
         except Exception as e:
             self.logger.error(f"❌ Ошибка batch поиска: {e}")
@@ -413,34 +444,76 @@ class DatabaseOperations:
             return 0
 
     def _batch_update(self, normalized_list: List[Dict], existing_qsos: List[Dict], conn) -> int:
-        """Batch обновление существующих QSO"""
-        if not normalized_list:
+        """Batch обновление существующих QSO данными из LoTW (время не обновляется)"""
+        if not normalized_list or not existing_qsos:
             return 0
 
         try:
-            # Создаем словарь существующих QSO для быстрого поиска
-            # Ключ: (callsign, date, band, mode, time[:5])
-            existing_map = {}
-            for q in existing_qsos:
-                time_str = str(q['time'])[:5] if q['time'] else ''
-                key = (q['callsign'], str(q['date']), q['band'], q['mode'], time_str)
-                existing_map[key] = q['id']
-
             with conn.cursor() as cur:
                 updated = 0
-                for q in normalized_list:
-                    key = (q['callsign'], str(q['date']), q['band'], q['mode'], q['time'][:5])
-                    qso_id = existing_map.get(key)
 
-                    if qso_id:
-                        query = """
-                            UPDATE tlog_qso SET
-                                lotw = %s,
-                                updated_at = NOW()
-                            WHERE id = %s::uuid
-                        """
-                        cur.execute(query, (q['lotw'], qso_id))
-                        updated += 1
+                # Сопоставляем normalized_list с existing_qsos по ключу
+                for new_q in normalized_list:
+                    new_time = new_q['time'][:5]
+
+                    for existing in existing_qsos:
+                        # Проверяем совпадение по основным полям
+                        if (new_q['callsign'] == existing['callsign'] and
+                            str(new_q['date']) == str(existing['date']) and
+                            new_q['band'] == existing['band'] and
+                            new_q['mode'] == existing['mode']):
+
+                            # Проверяем время с погрешностью ±5 минут
+                            try:
+                                new_seconds = int(new_time.split(':')[0]) * 3600 + int(new_time.split(':')[1]) * 60
+                                ex_time = str(existing['time'])[:5]
+                                existing_seconds = int(ex_time.split(':')[0]) * 3600 + int(ex_time.split(':')[1]) * 60
+                                time_diff = abs(new_seconds - existing_seconds)
+
+                                if time_diff <= 300:  # ±5 минут
+                                    # Обновляем только непустые поля из LoTW
+                                    updates = []
+                                    values = []
+
+                                    if new_q.get('lotw'):
+                                        updates.append("lotw = %s")
+                                        values.append(new_q['lotw'])
+                                    if new_q.get('gridsquare'):
+                                        updates.append("gridsquare = %s")
+                                        values.append(new_q['gridsquare'])
+                                    if new_q.get('ru_region'):
+                                        updates.append("ru_region = %s")
+                                        values.append(new_q['ru_region'])
+                                    if new_q.get('continent'):
+                                        updates.append("continent = %s")
+                                        values.append(new_q['continent'])
+                                    if new_q.get('cqz') is not None:
+                                        updates.append("cqz = %s")
+                                        values.append(new_q['cqz'])
+                                    if new_q.get('ituz') is not None:
+                                        updates.append("ituz = %s")
+                                        values.append(new_q['ituz'])
+                                    if new_q.get('prop_mode'):
+                                        updates.append("prop_mode = %s")
+                                        values.append(new_q['prop_mode'])
+                                    if new_q.get('sat_name'):
+                                        updates.append("sat_name = %s")
+                                        values.append(new_q['sat_name'])
+
+                                    if updates:
+                                        updates.append("updated_at = NOW()")
+                                        values.append(existing['id'])
+
+                                        query = f"""
+                                            UPDATE tlog_qso
+                                            SET {', '.join(updates)}
+                                            WHERE id = %s::uuid
+                                        """
+                                        cur.execute(query, values)
+                                        updated += 1
+                                    break
+                            except Exception:
+                                continue
 
                 conn.commit()
                 return updated
