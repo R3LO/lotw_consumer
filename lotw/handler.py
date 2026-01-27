@@ -85,8 +85,13 @@ class MessageHandler:
                 )
 
                 # Обновляем lotw_lastsync
-                created_at = task.get('created_at', datetime.now().date().isoformat())
-                self.db_ops.update_lotw_lastsync(user_id, created_at)
+                created_at_str = task.get('created_at', datetime.now().date().isoformat())
+                # Извлекаем дату в формате YYYY-MM-DD
+                if 'T' in created_at_str:
+                    lotw_date = created_at_str.split('T')[0]
+                else:
+                    lotw_date = created_at_str
+                self.db_ops.update_lotw_lastsync(user_id, lotw_date)
 
                 self.logger.info(f"Задача {task_id} успешно обработана")
                 self.logger.info(f"   QSO: добавлено {result.get('qso_added', 0)}, обновлено {result.get('qso_updated', 0)}")
