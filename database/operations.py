@@ -368,7 +368,7 @@ class DatabaseOperations:
             return []
 
     def _batch_insert(self, normalized_list: List[Dict], user_id: int, conn) -> int:
-        """Batch вставка новых QSO"""
+        """Batch вставка новых QSO с пропуском дубликатов"""
         if not normalized_list:
             return 0
 
@@ -378,13 +378,13 @@ class DatabaseOperations:
                 params = []
                 for q in normalized_list:
                     record_id = str(uuid.uuid4())
-                    # date нужно привести к строке для корректной вставки
                     date_str = str(q['date']) if q['date'] else None
-                    values.append("(%s::uuid, %s, %s, %s, %s, %s, %s::date, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())")
+                    time_str = q['time'][:5] if q['time'] else None
+                    values.append("(%s::uuid, %s, %s, %s, %s, %s, %s::date, %s::time, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())")
                     params.extend([
                         record_id, q['callsign'], q['my_callsign'],
                         q['band'], q['frequency'], q['mode'],
-                        date_str, q['time'],
+                        date_str, time_str,
                         q['prop_mode'], q['sat_name'], q['lotw'], 'N', q['r150s'],
                         q['gridsquare'], q['my_gridsquare'], q['rst_sent'], q['rst_rcvd'],
                         q['ru_region'], q['cqz'], q['ituz'], user_id,
@@ -399,16 +399,14 @@ class DatabaseOperations:
                         ru_region, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
                         created_at, updated_at
                     ) VALUES {', '.join(values)}
+                    ON CONFLICT (id) DO NOTHING
                 """
 
                 cur.execute(query, params)
                 conn.commit()
-                return len(normalized_list)
+                # Возвращаем количество реально вставленных записей
+                return cur.rowcount
 
-        except psycopg2.errors.UniqueViolation:
-            conn.rollback()
-            self.logger.warning(f"⚠️ Дубликаты при batch insert")
-            return 0
         except Exception as e:
             conn.rollback()
             self.logger.error(f"❌ Ошибка batch insert: {e}")
