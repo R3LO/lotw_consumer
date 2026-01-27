@@ -19,6 +19,11 @@ class DatabaseOperations:
         self.logger = logger
         self.db_conn = DatabaseConnection(logger)
         self.normalizer = DataNormalizer(logger)
+        # Инициализируем функции lookup для DXCC и R150
+        from dxcc_lookup import get_dxcc_info as get_r150_info
+        from cty_lookup import get_dxcc_from_cty
+        self._get_r150_info = get_r150_info
+        self._get_dxcc_from_cty = get_dxcc_from_cty
 
     def get_user_id_by_username(self, username: str) -> Optional[int]:
         """Ищет user_id по username в таблице auth_user"""
@@ -286,11 +291,32 @@ class DatabaseOperations:
 
             # Batch поиск существующих QSO
             existing_qsos = self._find_existing_batch(normalized_list, user_id, conn)
-            existing_keys = set((q['callsign'], q['date'], q['band'], q['mode']) for q in existing_qsos)
 
-            # Разделяем на новые и существующие
-            new_qsos = [q for q in normalized_list if (q['callsign'], q['date'], q['band'], q['mode']) not in existing_keys]
-            update_qsos = [q for q in normalized_list if (q['callsign'], q['date'], q['band'], q['mode']) in existing_keys]
+            # Создаем множество ключей существующих записей для исключения из insert
+            existing_keys = set()
+            for q in existing_qsos:
+                key = (q['callsign'], str(q['date']), q['band'], q['mode'], str(q['time'])[:5])
+                existing_keys.add(key)
+
+            # Разделяем на новые и существующие (исключаем те, что уже есть в БД)
+            new_qsos = []
+            update_qsos = []
+
+            for q in normalized_list:
+                # Проверяем, есть ли точное совпадение времени (±0 сек)
+                found = False
+                for ex in existing_qsos:
+                    if (q['callsign'] == ex['callsign'] and
+                        str(q['date']) == str(ex['date']) and
+                        q['band'] == ex['band'] and
+                        q['mode'] == ex['mode'] and
+                        q['time'][:5] == str(ex['time'])[:5]):
+                        update_qsos.append(q)
+                        found = True
+                        break
+
+                if not found:
+                    new_qsos.append(q)
 
             added = 0
             updated = 0
@@ -430,12 +456,11 @@ class DatabaseOperations:
                         ru_region, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
                         created_at, updated_at
                     ) VALUES {', '.join(values)}
-                    ON CONFLICT (id) DO NOTHING
+                    ON CONFLICT ON CONSTRAINT unique_qso DO NOTHING
                 """
 
                 cur.execute(query, params)
                 conn.commit()
-                # Возвращаем количество реально вставленных записей
                 return cur.rowcount
 
         except Exception as e:
@@ -499,6 +524,18 @@ class DatabaseOperations:
                                     if new_q.get('sat_name'):
                                         updates.append("sat_name = %s")
                                         values.append(new_q['sat_name'])
+
+                                    # Обновляем dxcc из cty.dat
+                                    dxcc = self._get_dxcc_from_cty(new_q['callsign'])
+                                    if dxcc:
+                                        updates.append("dxcc = %s")
+                                        values.append(dxcc)
+
+                                    # Обновляем r150s из r150cty.dat
+                                    r150_info = self._get_r150_info(new_q['callsign'])
+                                    if r150_info and r150_info.get('country'):
+                                        updates.append("r150s = %s")
+                                        values.append(r150_info['country'].upper())
 
                                     if updates:
                                         updates.append("updated_at = NOW()")

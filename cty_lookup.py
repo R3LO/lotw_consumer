@@ -96,6 +96,9 @@ class CTYDatabase:
                     if line.endswith(';'):
                         line = line[:-1]
                     prefixes = self._parse_prefixes(line)
+                    # R0, R8, R9 должны быть UA9 (Asiatic Russia), а не European Russia
+                    if current_entry.name == 'European Russia':
+                        prefixes = [p for p in prefixes if not (p.startswith('R0') or p.startswith('R8') or p.startswith('R9'))]
                     current_entry.prefixes.extend(prefixes)
 
         # Сохраняем последнюю запись
@@ -156,20 +159,7 @@ class CTYDatabase:
         """Возвращает DXCC префикс для позывного"""
         entry = self.find_by_callsign(callsign)
         if entry:
-            # Пытаемся найти точный префикс в формате UA, UA9, UA2 и т.д.
-            callsign_prefix = callsign[:2] if len(callsign) >= 2 else callsign
-
-            # Проверяем, начинается ли позывной с primary_prefix
-            if entry.primary_prefix and callsign.startswith(entry.primary_prefix):
-                return entry.primary_prefix
-
-            # Ищем префикс из первых 2-3 символов позывного
-            for i in range(min(len(callsign), 3), 1, -1):
-                prefix = callsign[:i]
-                if prefix in entry.prefixes:
-                    return prefix
-
-            # Возвращаем primary_prefix если ничего не найдено
+            # Всегда возвращаем primary_prefix (UA9 для Asiatic Russia, UA для European Russia)
             return entry.primary_prefix if entry.primary_prefix else None
 
         return None
