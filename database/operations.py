@@ -133,7 +133,7 @@ class DatabaseOperations:
         finally:
             conn.close()
 
-    def insert_qso(self, qso_data: Dict[str, str], username: str, user_id: int) -> bool:
+    def insert_qso(self, qso_data: Dict[str, str], my_callsign: str, user_id: int) -> bool:
         """Вставляет новую QSO в базу данных с UUID"""
         conn = self.db_conn.get_connection()
         if not conn:
@@ -144,7 +144,7 @@ class DatabaseOperations:
             callsign = qso_data.get('CALL', '').upper()
 
             # Подготовка данных через нормализатор
-            normalized_data = self.normalizer.prepare_qso_data(qso_data, username)
+            normalized_data = self.normalizer.prepare_qso_data(qso_data, my_callsign)
 
             self.logger.debug(f"📝 Вставляем QSO: {callsign} {normalized_data['date']} {normalized_data['time']}")
             self.logger.debug(f"📝 UUID: {record_id}")
@@ -163,7 +163,7 @@ class DatabaseOperations:
 
                 params = [
                     record_id,
-                    callsign, username,
+                    callsign, my_callsign,
                     normalized_data['band'], normalized_data['frequency'], normalized_data['mode'],
                     normalized_data['date'], normalized_data['time'],
                     normalized_data['prop_mode'], normalized_data['sat_name'],
@@ -246,7 +246,7 @@ class DatabaseOperations:
         finally:
             conn.close()
 
-    def process_qso_batch(self, qso_data_list: List[Dict[str, str]], username: str, user_id: int) -> Dict[str, Any]:
+    def process_qso_batch(self, qso_data_list: List[Dict[str, str]], my_callsign: str, user_id: int) -> Dict[str, Any]:
         """Обрабатывает пакет QSO"""
         conn = self.db_conn.get_connection()
         if not conn:
@@ -273,7 +273,7 @@ class DatabaseOperations:
                     continue
 
                 # Добавляем my_callsign в данные QSO для поиска
-                qso_data['STATION_CALLSIGN'] = username
+                qso_data['STATION_CALLSIGN'] = my_callsign
 
                 # Ищем существующую QSO
                 existing_qso = self.find_existing_qso(qso_data, user_id)
@@ -286,7 +286,7 @@ class DatabaseOperations:
                         errors += 1
                 else:
                     # Добавляем новую QSO
-                    if self.insert_qso(qso_data, username, user_id):
+                    if self.insert_qso(qso_data, my_callsign, user_id):
                         added += 1
                     else:
                         errors += 1
@@ -298,7 +298,7 @@ class DatabaseOperations:
             result = {
                 'success': True,
                 'user_id': user_id,
-                'username': username,
+                'my_callsign': my_callsign,
                 'total_qso': len(qso_data_list),
                 'qso_added': added,
                 'qso_updated': updated,

@@ -140,9 +140,10 @@ class DataNormalizer:
         except (ValueError, TypeError):
             return None
 
-    def prepare_qso_data(self, qso_data: Dict[str, str], username: str = '') -> Dict[str, Any]:
+    def prepare_qso_data(self, qso_data: Dict[str, str], my_callsign: str = '') -> Dict[str, Any]:
         """Подготавливает все данные QSO для вставки/обновления"""
         callsign = qso_data.get('CALL', '').upper()
+        my_callsign = my_callsign.upper()  # Сохраняем прописными
 
         # Определяем страну и континент из r150cty.dat
         r150_info = get_r150_info(callsign) if callsign else None

@@ -72,7 +72,7 @@ class MessageHandler:
             # Обрабатываем данные
             result = self.db_ops.process_qso_batch(
                 lotw_result['qso_data'],
-                username,
+                callsign,  # Используем callsign из задачи как my_callsign
                 user_id
             )
 

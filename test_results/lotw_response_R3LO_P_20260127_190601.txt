@@ -1,0 +1,39 @@
+============================================================
+LoTW API Response
+Дата запроса: 2026-01-27T19:06:01.198946
+Позывной: R3LO/P
+============================================================
+
+STATUS CODE:
+200
+
+HEADERS:
+  Date: Tue, 27 Jan 2026 16:06:00 GMT
+  Server: Apache/2.4.62 (Red Hat Enterprise Linux) OpenSSL/3.2.2
+  Accept-Ranges: none
+  Set-Cookie: lotw-login=107429182.32947; Domain=lotw.arrl.org; Path=/; Secure; Version=1
+  Cache-Control: max-age=0
+  Expires: Tue, 27 Jan 2026 16:06:00 GMT
+  Keep-Alive: timeout=5, max=100
+  Connection: Keep-Alive
+  Transfer-Encoding: chunked
+  Content-Type: application/x-arrl-adif; charset=iso-8859-1
+
+RESPONSE BODY:
+----------------------------------------
+ARRL Logbook of the World Status Report
+Generated at 2026-01-27 16:06:01
+for r3lo
+Query:
+        CALL: R3LO/P
+    QSL ONLY: YES
+QSL RX SINCE: 2026-01-01 00:00:00 (user supplied value)
+
+<PROGRAMID:4>LoTW
+<APP_LoTW_NUMREC:1>0
+
+<eoh>
+
+<APP_LoTW_EOF>
+
+

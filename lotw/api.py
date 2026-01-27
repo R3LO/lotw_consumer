@@ -35,6 +35,7 @@ class LoTWAPI:
                 'qso_qsl': 'yes',
                 'qso_qsldetail': 'yes',
                 'qso_withown': 'yes',
+                'qso_owncall': callsign
             }
 
             # Используем lotw_lastsync для запроса только новых QSO с этой даты
@@ -46,7 +47,7 @@ class LoTWAPI:
                 self.logger.info("Запрос всех QSO (lotw_lastsync не задан)")
 
             if callsign:
-                params['callsign'] = callsign
+                params['qso_owncall'] = callsign
 
             self.logger.info(f"Запрос к LoTW API для {callsign}")
 

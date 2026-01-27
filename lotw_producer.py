@@ -317,6 +317,14 @@ class LoTWProducer:
         """
         task_id = f"lotw_{int(time.time())}_{callsign}"
 
+        # Преобразуем lotw_lastsync в строку для JSON сериализации
+        lotw_lastsync = credentials.get('lotw_lastsync')
+        if lotw_lastsync:
+            if hasattr(lotw_lastsync, 'isoformat'):
+                lotw_lastsync = lotw_lastsync.isoformat()
+            else:
+                lotw_lastsync = str(lotw_lastsync)
+
         task = {
             'task_id': task_id,
             'task_type': 'lotw_sync',
@@ -324,7 +332,7 @@ class LoTWProducer:
             'username': credentials['lotw_user'],
             'password': credentials['lotw_password'],
             'user_id': credentials['user_id'],
-            'lotw_lastsync': credentials.get('lotw_lastsync'),
+            'lotw_lastsync': lotw_lastsync,
             'created_at': datetime.now().date().isoformat()
         }
 
