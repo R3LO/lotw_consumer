@@ -5,13 +5,7 @@
     "user_id": 1,
     "lotw_chk_pass": true
   },
-  "UA6PEY": {
-    "lotw_user": "R3LO",
-    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
-    "user_id": 1,
-    "lotw_chk_pass": true
-  },
-  "UA3LPF": {
+  "R3LO/1": {
     "lotw_user": "R3LO",
     "lotw_password": "tj?o*mEp#SqFyu9hcUah",
     "user_id": 1,
@@ -23,16 +17,94 @@
     "user_id": 1,
     "lotw_chk_pass": true
   },
-  "R3LO/1": {
+  "RK3LO": {
     "lotw_user": "R3LO",
     "lotw_password": "tj?o*mEp#SqFyu9hcUah",
     "user_id": 1,
     "lotw_chk_pass": true
   },
-  "R3AA": {
+  "RK3LO/P": {
     "lotw_user": "R3LO",
     "lotw_password": "tj?o*mEp#SqFyu9hcUah",
-    "user_id": 5,
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "RN3LA": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "RN3LA/M": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "RN3LA/P": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "RW2L": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "RW2L/P": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "UA3LPF": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "UA3LPF/1/M": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "UA3LPF/3": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "UA3LPF/3/M": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "UA3LPF/3/P": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "UA3LPF/M": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "UA3LPF/P": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
+    "lotw_chk_pass": true
+  },
+  "UA6PEY": {
+    "lotw_user": "R3LO",
+    "lotw_password": "tj?o*mEp#SqFyu9hcUah",
+    "user_id": 1,
     "lotw_chk_pass": true
   }
 }

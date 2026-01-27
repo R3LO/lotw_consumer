@@ -22,7 +22,7 @@ def setup_logging():
 
     # Файловый обработчик из конфига
     try:
-        file_handler = logging.FileHandler(LOG_FILE)
+        file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         logger.info(f"Логирование в файл: {LOG_FILE}")

@@ -133,15 +133,15 @@ class LoTWProducer:
             except Exception as e:
                 self.logger.warning(f"Не удалось создать DLQ: {e}")
 
-            self.logger.info(f"✅ Подключено к RabbitMQ: {RABBITMQ_HOST}:{RABBITMQ_PORT}")
-            self.logger.info(f"📤 Очередь: {RABBITMQ_QUEUE}")
+            self.logger.info(f"Подключено к RabbitMQ: {RABBITMQ_HOST}:{RABBITMQ_PORT}")
+            self.logger.info(f"Очередь: {RABBITMQ_QUEUE}")
 
         except pika.exceptions.AMQPConnectionError as e:
-            self.logger.error(f"❌ Ошибка подключения к RabbitMQ: {e}")
+            self.logger.error(f"Ошибка подключения к RabbitMQ: {e}")
             self.logger.error(f"Проверьте: хост={RABBITMQ_HOST}, порт={RABBITMQ_PORT}, пользователь={RABBITMQ_USER}")
             sys.exit(1)
         except Exception as e:
-            self.logger.error(f"❌ Неожиданная ошибка подключения: {e}")
+            self.logger.error(f"Неожиданная ошибка подключения: {e}")
             sys.exit(1)
 
     def get_db_connection(self):
@@ -158,14 +158,14 @@ class LoTWProducer:
             # Устанавливаем схему
             with conn.cursor() as cur:
                 cur.execute(f"SET search_path TO {DB_SCHEMA}")
-            self.logger.debug("✅ Подключение к БД успешно")
+            self.logger.debug("Подключение к БД успешно")
             return conn
         except psycopg2.OperationalError as e:
-            self.logger.error(f"❌ Ошибка подключения к БД: {e}")
+            self.logger.error(f"Ошибка подключения к БД: {e}")
             self.logger.error(f"Проверьте: хост={DB_HOST}, порт={DB_PORT}, БД={DB_NAME}, пользователь={DB_USER}")
             return None
         except Exception as e:
-            self.logger.error(f"❌ Неожиданная ошибка при подключении к БД: {e}")
+            self.logger.error(f"Неожиданная ошибка при подключении к БД: {e}")
             return None
 
     def extract_callsigns_with_credentials(self) -> Dict[str, Dict[str, Any]]:
@@ -235,12 +235,12 @@ class LoTWProducer:
                             if callsign_name:
                                 callsign_dict[callsign_name.upper()] = credentials
 
-            self.logger.info(f"✅ Получено {len(callsign_dict)} позывных из базы данных")
+            self.logger.info(f"Получено {len(callsign_dict)} позывных из базы данных")
             if skipped_due_to_false > 0:
-                self.logger.info(f"📊 Пропущено {skipped_due_to_false} позывных (lotw_chk_pass = FALSE)")
+                self.logger.info(f"Пропущено {skipped_due_to_false} позывных (lotw_chk_pass = FALSE)")
             if total_rows > 0:
                 percentage = (len(callsign_dict) / total_rows) * 100
-                self.logger.info(f"📈 Используется {percentage:.1f}% записей из базы")
+                self.logger.info(f"Используется {percentage:.1f}% записей из базы")
 
             # Дополнительная информация для отладки
             if callsign_dict:
@@ -257,7 +257,7 @@ class LoTWProducer:
             return callsign_dict
 
         except Exception as e:
-            self.logger.error(f"❌ Ошибка при чтении базы данных: {e}")
+            self.logger.error(f"Ошибка при чтении базы данных: {e}")
             return {}
         finally:
             if conn:
@@ -356,15 +356,15 @@ class LoTWProducer:
                     )
                 )
 
-                self.logger.info(f"✅ Задача отправлена: {callsign} (user_id: {credentials['user_id']}, login: {credentials['lotw_user'][:3]}***, chk_pass: {credentials.get('lotw_chk_pass', True)})")
+                self.logger.info(f"Задача отправлена: {callsign} (user_id: {credentials['user_id']}, login: {credentials['lotw_user'][:3]}***, chk_pass: {credentials.get('lotw_chk_pass', True)})")
                 return True
 
             except Exception as e:
                 if attempt < MAX_RETRIES - 1:
-                    self.logger.warning(f"⚠️ Попытка {attempt + 1}/{MAX_RETRIES} не удалась для {callsign}: {e}")
+                    self.logger.warning(f"Попытка {attempt + 1}/{MAX_RETRIES} не удалась для {callsign}: {e}")
                     time.sleep(2 ** attempt)  # Экспоненциальная задержка
                 else:
-                    self.logger.error(f"❌ Не удалось отправить задачу для {callsign} после {MAX_RETRIES} попыток: {e}")
+                    self.logger.error(f"Не удалось отправить задачу для {callsign} после {MAX_RETRIES} попыток: {e}")
 
         return False
 
@@ -373,14 +373,14 @@ class LoTWProducer:
         if batch_delay is None:
             batch_delay = BATCH_DELAY
 
-        self.logger.info(f"🚀 Начало синхронизации всех позывных")
+        self.logger.info(f"Начало синхронизации всех позывных")
         self.logger.info(f"   Задержка: {batch_delay} сек")
 
         # Получаем позывные из БД (используем вашу логику)
         callsigns = self.extract_callsigns_with_credentials()
 
         if not callsigns:
-            self.logger.warning("⚠️ Не найдено позывных для синхронизации")
+            self.logger.warning("Не найдено позывных для синхронизации")
             self.logger.info("Проверьте наличие записей в таблице tlog_radioprofile с заполненными lotw_user и lotw_password")
             self.logger.info("И проверьте, что поле lotw_chk_pass не равно FALSE")
             return None
@@ -389,14 +389,14 @@ class LoTWProducer:
         success = 0
         failed = 0
 
-        self.logger.info(f"📤 Начинаю отправку {total} задач...")
+        self.logger.info(f"Начинаю отправку {total} задач...")
         self.logger.info(f"   Позывные: {', '.join(sorted(callsigns.keys())[:10])}{'...' if total > 10 else ''}")
 
         # Отправляем задачи
         for i, (callsign, credentials) in enumerate(callsigns.items(), 1):
             # Логируем прогресс каждые 5 задач
             if i % 5 == 0 or i == total:
-                self.logger.info(f"📊 Прогресс: {i}/{total} ({i/total*100:.1f}%)")
+                self.logger.info(f"Прогресс: {i}/{total} ({i/total*100:.1f}%)")
 
             # Отправляем задачу
             if self.send_task(callsign, credentials):
@@ -409,7 +409,7 @@ class LoTWProducer:
                 time.sleep(batch_delay)
 
         # Статистика
-        self.logger.info(f"🏁 Синхронизация завершена")
+        self.logger.info(f"Синхронизация завершена")
         self.logger.info(f"   Успешно: {success}, Ошибок: {failed}, Всего: {total}")
 
         # Возвращаем статистику
@@ -426,7 +426,7 @@ class LoTWProducer:
         if batch_delay is None:
             batch_delay = BATCH_DELAY
 
-        self.logger.info(f"🎯 Синхронизация указанных позывных: {', '.join(callsigns_list)}")
+        self.logger.info(f"Синхронизация указанных позывных: {', '.join(callsigns_list)}")
 
         # Получаем все позывные
         all_callsigns = self.extract_callsigns_with_credentials()
@@ -440,20 +440,20 @@ class LoTWProducer:
             if callsign_upper in all_callsigns:
                 if self.send_task(callsign_upper, all_callsigns[callsign_upper]):
                     success += 1
-                    self.logger.info(f"✅ Задача для {callsign_upper} отправлена")
+                    self.logger.info(f"Задача для {callsign_upper} отправлена")
                 else:
                     failed += 1
-                    self.logger.error(f"❌ Ошибка отправки для {callsign_upper}")
+                    self.logger.error(f"Ошибка отправки для {callsign_upper}")
             else:
                 not_found += 1
-                self.logger.warning(f"⚠️ Позывной {callsign_upper} не найден в базе данных")
+                self.logger.warning(f"Позывной {callsign_upper} не найден в базе данных")
                 self.logger.debug(f"   Доступные позывные: {list(all_callsigns.keys())}")
 
             # Задержка между отправками
             if i < len(callsigns_list):
                 time.sleep(batch_delay)
 
-        self.logger.info(f"🏁 Завершено")
+        self.logger.info(f"Завершено")
         self.logger.info(f"   Успешно: {success}, Ошибок: {failed}, Не найдено: {not_found}")
 
     def check_queue_status(self) -> Tuple[Optional[int], Optional[int]]:
@@ -476,7 +476,7 @@ class LoTWProducer:
 
             messages = queue_info.method.message_count
 
-            self.logger.info(f"📊 Статус очередей:")
+            self.logger.info(f"Статус очередей:")
             self.logger.info(f"   {RABBITMQ_QUEUE}: {messages} сообщений")
             self.logger.info(f"   {dlq_name}: {dlq_messages} сообщений")
 
@@ -488,19 +488,19 @@ class LoTWProducer:
 
     def test_db_connection(self):
         """Тестирует подключение к БД и показывает найденные позывные"""
-        self.logger.info("🧪 Тестирование подключения к базе данных...")
+        self.logger.info("Тестирование подключения к базе данных...")
 
         callsigns = self.extract_callsigns_with_credentials()
 
         if not callsigns:
-            self.logger.error("❌ Не найдено позывных в базе данных")
+            self.logger.error("Не найдено позывных в базе данных")
             self.logger.info("Проверьте:")
             self.logger.info("1. Таблица tlog_radioprofile существует")
             self.logger.info("2. Поля lotw_user и lotw_password заполнены")
             self.logger.info("3. Поле lotw_chk_pass не равно FALSE (должно быть TRUE или NULL)")
             return False
 
-        self.logger.info(f"✅ Найдено {len(callsigns)} позывных:")
+        self.logger.info(f"Найдено {len(callsigns)} позывных:")
 
         # Показываем первые 10 позывных с логинами и статусом lotw_chk_pass
         for i, (callsign, credentials) in enumerate(list(callsigns.items())[:10], 1):
@@ -516,7 +516,7 @@ class LoTWProducer:
         chk_pass_null = sum(1 for c in callsigns.values() if c.get('lotw_chk_pass') is None)
         chk_pass_false = sum(1 for c in callsigns.values() if c.get('lotw_chk_pass') is False)
 
-        self.logger.info(f"📊 Статистика по lotw_chk_pass:")
+        self.logger.info(f"Статистика по lotw_chk_pass:")
         self.logger.info(f"   TRUE: {chk_pass_true}")
         self.logger.info(f"   NULL: {chk_pass_null}")
         self.logger.info(f"   FALSE: {chk_pass_false}")
@@ -530,7 +530,7 @@ class LoTWProducer:
                 self.connection.close()
                 self.logger.info("🔌 Соединение с RabbitMQ закрыто")
         except Exception as e:
-            self.logger.error(f"❌ Ошибка при закрытии соединения: {e}")
+            self.logger.error(f"Ошибка при закрытии соединения: {e}")
 
 
 def main():
@@ -564,7 +564,7 @@ def main():
 
     try:
         print("\n" + "="*60)
-        print("⚙️  НАСТРОЙКИ ПРОДЮСЕРА")
+        print(" НАСТРОЙКИ ПРОДЮСЕРА")
         print("="*60)
         print(f"Конфиг файл: config.py")
         print(f"RabbitMQ: {RABBITMQ_HOST}:{RABBITMQ_PORT}")
@@ -579,8 +579,8 @@ def main():
 
         if args.test:
             # Тестовый режим - только проверка подключений
-            producer.logger.info("🧪 ТЕСТОВЫЙ РЕЖИМ")
-            producer.logger.info("✅ Подключения успешны")
+            producer.logger.info("ТЕСТОВЫЙ РЕЖИМ")
+            producer.logger.info("Подключения успешны")
             return
 
         if args.test_db:
@@ -590,17 +590,17 @@ def main():
 
         if args.recreate:
             # Пересоздание очереди
-            producer.logger.info("🔄 Пересоздание очереди...")
+            producer.logger.info("Пересоздание очереди...")
             producer.close()
             producer.setup_rabbitmq(recreate_queue=True)
-            producer.logger.info("✅ Очередь пересоздана")
+            producer.logger.info("Очередь пересоздана")
             return
 
         if args.status:
             # Проверка статуса
             messages, dlq_messages = producer.check_queue_status()
             if messages is not None and dlq_messages is not None:
-                print(f"\n📊 СТАТУС ОЧЕРЕДЕЙ")
+                print(f"\nСТАТУС ОЧЕРЕДЕЙ")
                 print(f"Основная очередь ({RABBITMQ_QUEUE}): {messages} сообщений")
                 print(f"Очередь ошибок ({RABBITMQ_QUEUE}_dlq): {dlq_messages} сообщений")
 
@@ -616,7 +616,7 @@ def main():
             stats = producer.sync_all_callsigns(batch_delay=delay)
 
             if args.stats and stats:
-                print(f"\n📈 СТАТИСТИКА СИНХРОНИЗАЦИИ")
+                print(f"\nСТАТИСТИКА СИНХРОНИЗАЦИИ")
                 print(f"Всего позывных: {stats['total']}")
                 print(f"Успешно отправлено: {stats['success']}")
                 print(f"Ошибок отправки: {stats['failed']}")
@@ -630,12 +630,12 @@ def main():
 
     except KeyboardInterrupt:
         if producer:
-            producer.logger.info("🛑 Прервано пользователем")
+            producer.logger.info("Прервано пользователем")
     except Exception as e:
         if producer:
-            producer.logger.error(f"❌ Критическая ошибка: {e}")
+            producer.logger.error(f"Критическая ошибка: {e}")
         else:
-            print(f"❌ Критическая ошибка: {e}")
+            print(f"Критическая ошибка: {e}")
         sys.exit(1)
     finally:
         if producer:

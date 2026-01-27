@@ -28,23 +28,23 @@ class LoTWAPI:
                 'qso_query': '1',
                 'qso_qsl': 'yes',
                 'qso_qsldetail': 'yes',
-                'qso_startdate': '2025-01-01',
+                'qso_startdate': '1990-01-01',
             }
 
             if callsign:
                 params['callsign'] = callsign
 
-            self.logger.info(f"📡 Запрос к LoTW API для {callsign}")
+            self.logger.info(f"Запрос к LoTW API для {callsign}")
 
             response = requests.get(login_url, params=params, timeout=30)
 
             if response.status_code == 200:
                 content = response.text
-                self.logger.info(f"✅ Получен ответ от LoTW, длина: {len(content)} символов")
+                self.logger.info(f"Получен ответ от LoTW, длина: {len(content)} символов")
 
                 qso_data = self.parser.parse_adif_response_all_fields(content)
 
-                self.logger.info(f"✅ Получено {len(qso_data)} QSO для {callsign}")
+                self.logger.info(f"Получено {len(qso_data)} QSO для {callsign}")
 
                 return {
                     'success': True,
@@ -54,7 +54,7 @@ class LoTWAPI:
                     'raw_data_length': len(content)
                 }
             else:
-                self.logger.error(f"❌ Ошибка HTTP {response.status_code} для {callsign}")
+                self.logger.error(f"Ошибка HTTP {response.status_code} для {callsign}")
                 return {
                     'success': False,
                     'callsign': callsign,
@@ -64,7 +64,7 @@ class LoTWAPI:
                 }
 
         except requests.exceptions.Timeout:
-            self.logger.error(f"⏱️ Таймаут при запросе для {callsign}")
+            self.logger.error(f"Таймаут при запросе для {callsign}")
             return {
                 'success': False,
                 'callsign': callsign,
@@ -73,7 +73,7 @@ class LoTWAPI:
                 'qso_data': []
             }
         except Exception as e:
-            self.logger.error(f"❌ Непредвиденная ошибка для {callsign}: {e}")
+            self.logger.error(f"Непредвиденная ошибка для {callsign}: {e}")
             return {
                 'success': False,
                 'callsign': callsign,

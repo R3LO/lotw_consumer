@@ -27,6 +27,7 @@ class LoTWConsumer:
         self.max_workers = max_workers
         self.test_mode = test_mode
         self.running = True
+        self.rabbitmq = None
 
         # Инициализация компонентов
         self.logger = setup_logging()
@@ -50,6 +51,9 @@ class LoTWConsumer:
         signal_name = get_signal_name(signum)
         self.logger.info(f"Получен сигнал {signal_name}, завершаю работу...")
         self.running = False
+        # Останавливаем потребление сообщений
+        if hasattr(self, 'rabbitmq') and self.rabbitmq:
+            self.rabbitmq.close()
         self.close_connections()
 
     def close_connections(self):
@@ -59,7 +63,7 @@ class LoTWConsumer:
 
     def process_test_tasks(self):
         """Обработка тестовых задач"""
-        self.logger.info("🔧 Тестовый режим - обработка тестовых задач")
+        self.logger.info("Тестовый режим - обработка тестовых задач")
 
         test_tasks = [
             {
@@ -86,18 +90,18 @@ class LoTWConsumer:
             return
 
         # Инициализация RabbitMQ
-        rabbitmq = RabbitMQConnection(
+        self.rabbitmq = RabbitMQConnection(
             logger=self.logger,
             max_workers=self.max_workers
         )
 
-        if not rabbitmq.connect():
+        if not self.rabbitmq.connect():
             self.logger.error("Не удалось подключиться к RabbitMQ")
             return
 
         try:
-            self.logger.info(f"🚀 LoTW Consumer запущен и готов к работе")
-            self.logger.info("⏳ Ожидание задач синхронизации... (Ctrl+C для остановки)")
+            self.logger.info(f"LoTW Consumer запущен и готов к работе")
+            self.logger.info("Ожидание задач синхронизации... (Ctrl+C для остановки)")
 
             # Запуск потока статистики
             def stats_timer():
@@ -110,17 +114,17 @@ class LoTWConsumer:
             stats_thread.start()
 
             # Запуск прослушивания
-            rabbitmq.start_consuming(
+            self.rabbitmq.start_consuming(
                 message_handler=self.message_handler.handle_delivery,
                 stats_callback=self.stats.update_worker_count
             )
 
         except KeyboardInterrupt:
-            self.logger.info("\n🛑 Остановлено пользователем")
+            self.logger.info("\nОстановлено пользователем")
         except Exception as e:
-            self.logger.error(f"❌ Ошибка в основном цикле: {e}")
+            self.logger.error(f"Ошибка в основном цикле: {e}")
         finally:
-            rabbitmq.close()
+            self.rabbitmq.close()
             self.print_stats(detailed=True)
 
     def print_stats(self, detailed: bool = False):

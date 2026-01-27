@@ -28,7 +28,7 @@ class MessageHandler:
         password = task.get('password', 'unknown')
         user_id = task.get('user_id', 'unknown')
 
-        self.logger.info(f"🔧 Начинаю обработку задачи {task_id}")
+        self.logger.info(f"Начинаю обработку задачи {task_id}")
         self.logger.info(f"   Позывной: {callsign}")
         self.logger.info(f"   Пользователь: {username}")
 
@@ -38,9 +38,9 @@ class MessageHandler:
                 found_user_id = self.db_ops.get_user_id_by_username(username)
                 if found_user_id:
                     user_id = found_user_id
-                    self.logger.info(f"🔍 Найден user_id={user_id} для username={username}")
+                    self.logger.info(f"Найден user_id={user_id} для username={username}")
                 else:
-                    self.logger.error(f"❌ Не найден user_id для username={username}")
+                    self.logger.error(f"Не найден user_id для username={username}")
                     return {
                         'success': False,
                         'callsign': callsign,
@@ -52,7 +52,7 @@ class MessageHandler:
             lotw_result = self.lotw_api.get_lotw_data(callsign, username, password)
 
             if not lotw_result['success']:
-                self.logger.error(f"❌ Ошибка получения данных из LoTW: {lotw_result.get('error')}")
+                self.logger.error(f"Ошибка получения данных из LoTW: {lotw_result.get('error')}")
                 return lotw_result
 
             # Обрабатываем данные
@@ -70,18 +70,18 @@ class MessageHandler:
                     skipped=result.get('qso_skipped', 0)
                 )
 
-                self.logger.info(f"✅ Задача {task_id} успешно обработана")
+                self.logger.info(f"Задача {task_id} успешно обработана")
                 self.logger.info(f"   QSO: добавлено {result.get('qso_added', 0)}, обновлено {result.get('qso_updated', 0)}")
             else:
                 self.stats.increment_failed()
-                self.logger.error(f"❌ Задача {task_id} завершилась с ошибкой")
+                self.logger.error(f"Задача {task_id} завершилась с ошибкой")
                 if 'error' in result:
                     self.logger.error(f"   Ошибка: {result['error']}")
 
             return result
 
         except Exception as e:
-            self.logger.error(f"❌ Критическая ошибка при обработке задачи {task_id}: {e}")
+            self.logger.error(f"Критическая ошибка при обработке задачи {task_id}: {e}")
             self.stats.increment_failed()
             return {
                 'success': False,
@@ -105,7 +105,7 @@ class MessageHandler:
             if result.get('success'):
                 ch.basic_ack(delivery_tag=method.delivery_tag)
                 self.stats.update_last_task()
-                self.logger.info(f"✅ Задача {task_id} завершена")
+                self.logger.info(f"Задача {task_id} завершена")
             else:
                 retry_count = task.get('retry_count', 0) + 1
 
@@ -129,17 +129,17 @@ class MessageHandler:
                     )
                     ch.basic_ack(delivery_tag=method.delivery_tag)
                     self.stats.increment_retried()
-                    self.logger.warning(f"⚠️ Задача {task_id} будет повторена через {delay_minutes} мин")
+                    self.logger.warning(f"Задача {task_id} будет повторена через {delay_minutes} мин")
                 else:
                     ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                    self.logger.error(f"❌ Задача {task_id} перемещена в DLQ после {self.max_retries} попыток")
+                    self.logger.error(f"Задача {task_id} перемещена в DLQ после {self.max_retries} попыток")
 
         except json.JSONDecodeError as e:
-            self.logger.error(f"❌ Ошибка декодирования JSON: {e}")
+            self.logger.error(f"Ошибка декодирования JSON: {e}")
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             self.stats.increment_failed()
         except Exception as e:
-            self.logger.error(f"❌ Непредвиденная ошибка: {e}")
+            self.logger.error(f"Непредвиденная ошибка: {e}")
             if task:
                 task_id = task.get('task_id', 'unknown')
                 self.logger.error(f"Задача вызвавшая ошибку: {task_id}")

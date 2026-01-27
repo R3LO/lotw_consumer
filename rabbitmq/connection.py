@@ -30,20 +30,20 @@ class RabbitMQConnection:
             sock.close()
 
             if result == 0:
-                self.logger.info(f"✅ Хост {RABBITMQ_HOST}:{RABBITMQ_PORT} доступен")
+                self.logger.info(f"Хост {RABBITMQ_HOST}:{RABBITMQ_PORT} доступен")
                 return True
             else:
-                self.logger.error(f"❌ Хост {RABBITMQ_HOST}:{RABBITMQ_PORT} недоступен")
+                self.logger.error(f"Хост {RABBITMQ_HOST}:{RABBITMQ_PORT} недоступен")
                 return False
 
         except Exception as e:
-            self.logger.error(f"❌ Ошибка при проверке подключения: {e}")
+            self.logger.error(f"Ошибка при проверке подключения: {e}")
             return False
 
     def connect(self) -> bool:
         """Настройка подключения к RabbitMQ"""
         try:
-            self.logger.info(f"🔄 Попытка подключения к RabbitMQ...")
+            self.logger.info(f"Попытка подключения к RabbitMQ...")
             self.logger.info(f"   Хост: {RABBITMQ_HOST}:{RABBITMQ_PORT}")
             self.logger.info(f"   Пользователь: {RABBITMQ_USER}")
             self.logger.info(f"   Очередь: {RABBITMQ_QUEUE}")
@@ -82,26 +82,26 @@ class RabbitMQConnection:
             # Настраиваем QoS
             self.channel.basic_qos(prefetch_count=self.max_workers)
 
-            self.logger.info(f"✅ Успешно подключено к RabbitMQ")
-            self.logger.info(f"📡 Прослушиваю очередь: {RABBITMQ_QUEUE}")
-            self.logger.info(f"👷 Максимум воркеров: {self.max_workers}")
+            self.logger.info(f"Успешно подключено к RabbitMQ")
+            self.logger.info(f"Прослушиваю очередь: {RABBITMQ_QUEUE}")
+            self.logger.info(f"Максимум воркеров: {self.max_workers}")
 
             return True
 
         except pika.exceptions.AMQPConnectionError as e:
-            self.logger.error(f"❌ Ошибка соединения AMQP: {e}")
+            self.logger.error(f"Ошибка соединения AMQP: {e}")
             return False
         except pika.exceptions.AuthenticationError as e:
-            self.logger.error(f"❌ Ошибка аутентификации: {e}")
+            self.logger.error(f"Ошибка аутентификации: {e}")
             return False
         except Exception as e:
-            self.logger.error(f"❌ Неожиданная ошибка при подключении: {e}")
+            self.logger.error(f"Неожиданная ошибка при подключении: {e}")
             return False
 
     def start_consuming(self, message_handler: Callable, stats_callback: Optional[Callable] = None):
         """Запуск прослушивания очереди"""
         if not self.channel or not self.connection:
-            self.logger.error("❌ Соединение не установлено")
+            self.logger.error("Соединение не установлено")
             return
 
         try:
@@ -111,20 +111,21 @@ class RabbitMQConnection:
                 auto_ack=False
             )
 
-            self.logger.info("⏳ Начинаю прослушивание очереди...")
+            self.logger.info("Начинаю прослушивание очереди...")
             self.channel.start_consuming()
 
         except Exception as e:
-            self.logger.error(f"❌ Ошибка при прослушивании очереди: {e}")
+            self.logger.error(f"Ошибка при прослушивании очереди: {e}")
             raise
 
     def close(self):
         """Корректное закрытие соединения"""
         try:
             if self.channel and self.channel.is_open:
+                self.channel.stop_consuming()
                 self.channel.close()
             if self.connection and self.connection.is_open:
                 self.connection.close()
-            self.logger.info("🔌 Соединение с RabbitMQ закрыто")
+            self.logger.info("Соединение с RabbitMQ закрыто")
         except Exception as e:
-            self.logger.error(f"❌ Ошибка при закрытии соединения: {e}")
+            self.logger.error(f"Ошибка при закрытии соединения: {e}")
