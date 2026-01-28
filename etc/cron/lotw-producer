@@ -1,0 +1,2 @@
+# Запуск каждые 6 часов
+0 */6 * * * root cd /opt/lotw-producer && /opt/lotw-producer/venv/bin/python lotw_producer.py --all >> /var/log/lotw-producer.log 2>&1

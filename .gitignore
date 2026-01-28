@@ -1,4 +1,4 @@
-# Python
+0 бацтon
 __pycache__/
 *.py[cod]
 *$py.class
@@ -41,7 +41,10 @@ env/
 
 # Logs
 *.log
-logs/
+# Debug files
+callsigns_debug.json
+tasks_output.json
+test_data.json
 
 # Database
 *.db

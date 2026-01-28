@@ -1,0 +1,22 @@
+[Unit]
+Description=LoTW RabbitMQ Consumer Service
+After=network.target
+
+[Service]
+Type=simple
+User=lotw
+WorkingDirectory=/opt/lotw-producer
+ExecStart=/opt/lotw-producer/venv/bin/python /opt/lotw-producer/consumer.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+# Переменные окружения загружаются из .env файла в директории проекта
+
+# Логирование
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lotw-consumer
+
+[Install]
+WantedBy=multi-user.target

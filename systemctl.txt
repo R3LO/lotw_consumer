@@ -1,0 +1,90 @@
+Cron 
+sudo nano /etc/cron.d/lotw-producer
+
+Команды для установки:
+
+Запуск
+# Перезагрузка конфигурации systemd
+sudo systemctl daemon-reload
+
+# Включение автозапуска
+sudo systemctl enable lotw-consumer
+
+# Запуск службы
+sudo systemctl start lotw-consumer
+
+# Проверка статуса
+sudo systemctl status lotw-consumer
+
+# Просмотр логов
+sudo journalctl -u lotw-consumer -f
+Полезные команды:
+
+Запуск
+# Перезапуск
+sudo systemctl restart lotw-consumer
+
+# Остановка
+sudo systemctl stop lotw-consumer
+Примечание: замени /opt/lotw-producer на реальный путь к проекту.
+
+sudo systemctl daemon-reload
+sudo systemctl enable lotw-consumer
+sudo systemctl start lotw-consumer
+
+# Создать директорию
+mkdir -p /opt/lotw-producer
+
+# Права (если нужен доступ не только root)
+sudo chown $USER:$USER /opt/lotw-producer
+
+# Структура после развёртывания:
+/opt/lotw-producer/
+├── consumer.py
+├── lotw_producer.py
+├── config.py
+├── .env
+├── requirements.txt
+├── logs/          (создать)
+└── ...
+
+# Логи желательно вынести в отдельную директорию
+mkdir -p /var/log/lotw-producer  # или /opt/lotw-producer/logs
+
+# Установка зависимостей
+cd /opt/lotw-producer
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Настройка прав (если не root)
+sudo chown -R $USER:$USER /opt/lotw-producer
+
+# Проверка
+python lotw_producer.py --all
+
+
+
+
+Для production-сервиса лучше создать отдельного системного пользователя:
+
+Bash
+Запуск
+# Создание пользователя без домашней директории и без shell (безопаснее)
+sudo useradd -r -s /usr/sbin/nologin lotw
+
+# Или с домашней директорией
+sudo useradd -m -s /usr/bash lotw
+
+# Назначение прав на директорию проекта
+sudo chown -R lotw:lotw /opt/lotw-producer
+
+# Проверка
+id lotw
+Обновление systemd-сервиса:
+
+Koda отредактировала /etc/systemd/system/lotw-consumer.service
+
+sudo useradd -r -s /usr/sbin/nologin lotw
+sudo chown -R lotw:lotw /opt/lotw-producer
+В systemd-сервисе поменяй User=root на User=lotw.
