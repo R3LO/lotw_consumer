@@ -5,7 +5,7 @@
 import re
 from typing import Dict, Any, Optional
 
-from dxcc_lookup import get_dxcc_info as get_r150_info
+from r150s_lookup import get_dxcc_info as get_r150_info
 from cty_lookup import get_dxcc_from_cty
 
 
