@@ -30,6 +30,12 @@ class CTYException:
     cq_zone: int
     itu_zone: int
     primary_prefix: str
+    cq_zone_alt: Optional[int] = None  # Альтернативная CQ зона из скобок (38)
+    itu_zone_alt: Optional[int] = None  # Альтернативная ITU зона из скобок [67]
+    entry_name: Optional[str] = None  # Название страны из записи, где определено исключение
+    entry_lat: Optional[float] = None  # Широта из записи
+    entry_lon: Optional[float] = None  # Долгота из записи
+    entry_continent: Optional[str] = None  # Континент из записи
 
 
 class CTYDatabase:
@@ -174,19 +180,20 @@ class CTYDatabase:
             if '=' in part:
                 # Это исключение типа =8J1RL(39)[67]
                 exception_part = part
-                # Извлекаем cq_zone и itu_zone из скобок
                 cq_zone = entry.cq_zone
                 itu_zone = entry.itu_zone
+                cq_zone_alt = None
+                itu_zone_alt = None
 
-                # Ищем (число) для cq_zone
+                # Ищем (число) для cq_zone_alt
                 cq_match = re.search(r'\((\d+)\)', exception_part)
                 if cq_match:
-                    cq_zone = int(cq_match.group(1))
+                    cq_zone_alt = int(cq_match.group(1))
 
-                # Ищем [число] для itu_zone
+                # Ищем [число] для itu_zone_alt
                 itu_match = re.search(r'\[(\d+)\]', exception_part)
                 if itu_match:
-                    itu_zone = int(itu_match.group(1))
+                    itu_zone_alt = int(itu_match.group(1))
 
                 # Извлекаем позывной или префикс (часть до '(' или '[' или '=')
                 clean_part = exception_part.split('(')[0].split('[')[0]
@@ -198,18 +205,31 @@ class CTYDatabase:
                         callsign_or_prefix=clean_part,
                         cq_zone=cq_zone,
                         itu_zone=itu_zone,
-                        primary_prefix=entry.primary_prefix
+                        primary_prefix=entry.primary_prefix,
+                        cq_zone_alt=cq_zone_alt,
+                        itu_zone_alt=itu_zone_alt,
+                        entry_name=entry.name,
+                        entry_lat=entry.lat,
+                        entry_lon=entry.lon,
+                        entry_continent=entry.continent
                     )
                     self.exceptions.append(exception)
             else:
                 # Это особый префикс без = (например, 3Y[73])
                 cq_zone = entry.cq_zone
                 itu_zone = entry.itu_zone
+                cq_zone_alt = None
+                itu_zone_alt = None
 
-                # Ищем [число] для itu_zone
+                # Ищем (число) для cq_zone_alt
+                cq_match = re.search(r'\((\d+)\)', part)
+                if cq_match:
+                    cq_zone_alt = int(cq_match.group(1))
+
+                # Ищем [число] для itu_zone_alt
                 itu_match = re.search(r'\[(\d+)\]', part)
                 if itu_match:
-                    itu_zone = int(itu_match.group(1))
+                    itu_zone_alt = int(itu_match.group(1))
 
                 # Извлекаем префикс (часть до '(' или '[')
                 clean_part = part.split('(')[0].split('[')[0]
@@ -218,7 +238,13 @@ class CTYDatabase:
                         callsign_or_prefix=clean_part,
                         cq_zone=cq_zone,
                         itu_zone=itu_zone,
-                        primary_prefix=entry.primary_prefix
+                        primary_prefix=entry.primary_prefix,
+                        cq_zone_alt=cq_zone_alt,
+                        itu_zone_alt=itu_zone_alt,
+                        entry_name=entry.name,
+                        entry_lat=entry.lat,
+                        entry_lon=entry.lon,
+                        entry_continent=entry.continent
                     )
                     self.exceptions.append(exception)
 
@@ -234,25 +260,31 @@ class CTYDatabase:
         """Находит страну по позывному"""
         callsign = callsign.upper().strip()
 
-        # Сначала ищем в обычной базе (проверяем разные длины префикса)
+        # Сначала проверяем исключения (=позывные) для этого конкретного позывного
+        for exception in self.exceptions:
+            if callsign == exception.callsign_or_prefix:
+                # Используем данные из записи, где определено исключение
+                # Используем альтернативные зоны, если они указаны
+                final_cq_zone = exception.cq_zone_alt if exception.cq_zone_alt is not None else exception.cq_zone
+                final_itu_zone = exception.itu_zone_alt if exception.itu_zone_alt is not None else exception.itu_zone
+
+                return CTYEntry(
+                    name=exception.entry_name if exception.entry_name else exception.primary_prefix,
+                    cq_zone=final_cq_zone,
+                    itu_zone=final_itu_zone,
+                    continent=exception.entry_continent if exception.entry_continent else "",
+                    lat=exception.entry_lat if exception.entry_lat is not None else 0.0,
+                    lon=exception.entry_lon if exception.entry_lon is not None else 0.0,
+                    timezone=0.0,
+                    primary_prefix=exception.primary_prefix,
+                    prefixes=[]
+                )
+
+        # Затем ищем в обычной базе (проверяем разные длины префикса)
         for length in range(len(callsign), 0, -1):
             prefix = callsign[:length]
             if prefix in self.prefix_map:
                 entry = self.prefix_map[prefix]
-                # Проверяем, есть ли исключение для этого конкретного позывного
-                for exception in self.exceptions:
-                    if callsign == exception.callsign_or_prefix:
-                        return CTYEntry(
-                            name=f"Exception: {exception.callsign_or_prefix}",
-                            cq_zone=exception.cq_zone,
-                            itu_zone=exception.itu_zone,
-                            continent="",
-                            lat=0.0,
-                            lon=0.0,
-                            timezone=0.0,
-                            primary_prefix=exception.primary_prefix,
-                            prefixes=[]
-                        )
                 return entry
 
         # Если не найдено в обычной базе, проверяем исключения-префиксы
@@ -260,13 +292,17 @@ class CTYDatabase:
             # Исключения-префиксы - это те, которые короче позывного и не совпадают полностью
             if len(exception.callsign_or_prefix) < len(callsign):
                 if callsign.startswith(exception.callsign_or_prefix):
+                    # Используем альтернативные зоны, если они указаны
+                    final_cq_zone = exception.cq_zone_alt if exception.cq_zone_alt is not None else exception.cq_zone
+                    final_itu_zone = exception.itu_zone_alt if exception.itu_zone_alt is not None else exception.itu_zone
+
                     return CTYEntry(
-                        name=f"Exception prefix: {exception.callsign_or_prefix}",
-                        cq_zone=exception.cq_zone,
-                        itu_zone=exception.itu_zone,
-                        continent="",
-                        lat=0.0,
-                        lon=0.0,
+                        name=exception.entry_name if exception.entry_name else exception.primary_prefix,
+                        cq_zone=final_cq_zone,
+                        itu_zone=final_itu_zone,
+                        continent=exception.entry_continent if exception.entry_continent else "",
+                        lat=exception.entry_lat if exception.entry_lat is not None else 0.0,
+                        lon=exception.entry_lon if exception.entry_lon is not None else 0.0,
                         timezone=0.0,
                         primary_prefix=exception.primary_prefix,
                         prefixes=[]
@@ -305,12 +341,70 @@ def get_dxcc_from_cty(callsign: str) -> Optional[str]:
     return db.get_dxcc_prefix(callsign)
 
 
+def get_dxcc_info(callsign: str) -> Optional[Dict]:
+    """Возвращает полную информацию о стране DXCC для позывного"""
+    db = get_cty_database()
+    entry = db.find_by_callsign(callsign)
+
+    if not entry:
+        return None
+
+    # Проверяем, есть ли альтернативные зоны для этого позывного
+    cq_zone_alt = None
+    itu_zone_alt = None
+    callsign_upper = callsign.upper().strip()
+    for exception in db.exceptions:
+        if callsign_upper == exception.callsign_or_prefix:
+            cq_zone_alt = exception.cq_zone_alt
+            itu_zone_alt = exception.itu_zone_alt
+            break
+
+    return {
+        'callsign': callsign,
+        'country': entry.name,
+        'cq_zone': entry.cq_zone,
+        'itu_zone': entry.itu_zone,
+        'continent': entry.continent,
+        'latitude': entry.lat,
+        'longitude': entry.lon,
+        'timezone': entry.timezone,
+        'primary_prefix': entry.primary_prefix,
+        'cq_zone_alt': cq_zone_alt,
+        'itu_zone_alt': itu_zone_alt
+    }
+
+
+def print_dxcc_info(callsign: str):
+    """Выводит информацию о стране DXCC в читаемом формате"""
+    info = get_dxcc_info(callsign)
+
+    if not info:
+        print(f"Страна DXCC для позывного '{callsign}' не найдена")
+        return
+
+    print(f"Позывной: {info['callsign']}")
+    print(f"Страна: {info['country']}")
+    print(f"Континент: {info['continent']}")
+    print(f"CQ зона: {info['cq_zone']}")
+    print(f"ITU зона: {info['itu_zone']}")
+    print(f"Широта: {info['latitude']:.2f}")
+    print(f"Долгота: {info['longitude']:.2f}")
+    print(f"Часовой пояс: UTC{info['timezone']:+.1f}")
+    print(f"Основной префикс: {info['primary_prefix']}")
+    if info.get('cq_zone_alt') is not None:
+        print(f"Альтернативная CQ зона: {info['cq_zone_alt']}")
+    if info.get('itu_zone_alt') is not None:
+        print(f"Альтернативная ITU зона: {info['itu_zone_alt']}")
+
+
 if __name__ == "__main__":
     db = CTYDatabase()
 
     test_callsigns = ['RA4FG', 'UA9ABC', 'UA2ABC', 'DL1ABC', 'K1ABC', 'UB2FGA', 'UA1ABC']
     print("\nТест DXCC из cty.dat:")
     for call in test_callsigns:
-        prefix = db.get_dxcc_prefix(call)
-        country = db.get_country_name(call)
-        print(f"  {call}: prefix={prefix}, country={country}")
+        info = get_dxcc_info(call)
+        if info:
+            alt_cq = f" (alt: {info['cq_zone_alt']})" if info.get('cq_zone_alt') is not None else ""
+            alt_itu = f" (alt: {info['itu_zone_alt']})" if info.get('itu_zone_alt') is not None else ""
+            print(f"  {call}: country={info['country']}, CQ={info['cq_zone']}{alt_cq}, ITU={info['itu_zone']}{alt_itu}, prefix={info['primary_prefix']}")

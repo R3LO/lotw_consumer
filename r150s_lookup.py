@@ -25,6 +25,12 @@ class DXCCException:
     cq_zone: int
     itu_zone: int
     primary_prefix: str
+    cq_zone_alt: Optional[int] = None  # Альтернативная CQ зона из скобок (38)
+    itu_zone_alt: Optional[int] = None  # Альтернативная ITU зона из скобок [67]
+    entry_name: Optional[str] = None  # Название страны из записи, где определено исключение
+    entry_lat: Optional[float] = None  # Широта из записи
+    entry_lon: Optional[float] = None  # Долгота из записи
+    entry_continent: Optional[str] = None  # Континент из записи
 
 class DXCCDatabase:
     """База данных DXCC стран"""
@@ -200,13 +206,26 @@ class DXCCDatabase:
 
             # Проверяем на наличие = (исключение)
             if '=' in part:
-                # Это исключение типа =3D2CCC
+                # Это исключение типа =3D2CCC или =DP0GVN(38)[67]
                 exception_part = part
                 cq_zone = entry.cq_zone
                 itu_zone = entry.itu_zone
+                cq_zone_alt = None
+                itu_zone_alt = None
+
+                # Извлекаем альтернативные зоны из скобок (CQ) и [ITU]
+                # Формат: =DP0GVN(38)[67]
+                cq_match = re.search(r'\((\d+)\)', exception_part)
+                if cq_match:
+                    cq_zone_alt = int(cq_match.group(1))
+
+                itu_match = re.search(r'\[(\d+)\]', exception_part)
+                if itu_match:
+                    itu_zone_alt = int(itu_match.group(1))
 
                 # Извлекаем позывной (часть до '(' или сразу после =)
-                clean_part = exception_part.split('(')[0].split('[')[0]
+                clean_part = re.sub(r'\([^)]*\)', '', exception_part)  # Убираем (38)
+                clean_part = re.sub(r'\[[^\]]*\]', '', clean_part)  # Убираем [67]
                 if clean_part.startswith('='):
                     clean_part = clean_part[1:]  # Убираем =
 
@@ -215,7 +234,13 @@ class DXCCDatabase:
                         callsign_or_prefix=clean_part,
                         cq_zone=cq_zone,
                         itu_zone=itu_zone,
-                        primary_prefix=entry.primary_prefix
+                        primary_prefix=entry.primary_prefix,
+                        cq_zone_alt=cq_zone_alt,
+                        itu_zone_alt=itu_zone_alt,
+                        entry_name=entry.name,
+                        entry_lat=entry.lat,
+                        entry_lon=entry.lon,
+                        entry_continent=entry.continent
                     )
                     self.exceptions.append(exception)
 
@@ -223,26 +248,31 @@ class DXCCDatabase:
         """Находит страну DXCC по позывному"""
         callsign = callsign.upper().strip()
 
-        # Сначала ищем в обычных префиксах (от длинных к коротким)
+        # Сначала проверяем исключения (=позывные) для этого конкретного позывного
+        for exception in self.exceptions:
+            if callsign == exception.callsign_or_prefix:
+                # Используем данные из записи, где определено исключение (Antarctica)
+                # Используем альтернативные зоны, если они указаны
+                final_cq_zone = exception.cq_zone_alt if exception.cq_zone_alt is not None else exception.cq_zone
+                final_itu_zone = exception.itu_zone_alt if exception.itu_zone_alt is not None else exception.itu_zone
+
+                return DXCCEntry(
+                    name=exception.entry_name if exception.entry_name else exception.primary_prefix,
+                    cq_zone=final_cq_zone,
+                    itu_zone=final_itu_zone,
+                    continent=exception.entry_continent if exception.entry_continent else "",
+                    lat=exception.entry_lat if exception.entry_lat is not None else 0.0,
+                    lon=exception.entry_lon if exception.entry_lon is not None else 0.0,
+                    timezone=0.0,
+                    primary_prefix=exception.primary_prefix,
+                    prefixes=[]
+                )
+
+        # Затем ищем в обычных префиксах (от длинных к коротким)
         for length in range(len(callsign), 0, -1):
             prefix = callsign[:length]
             if prefix in self.prefix_map:
-                entry = self.prefix_map[prefix]
-                # Проверяем, есть ли исключение (=позывной) для этого конкретного позывного
-                for exception in self.exceptions:
-                    if callsign == exception.callsign_or_prefix:
-                        return DXCCEntry(
-                            name=f"Exception: {exception.callsign_or_prefix}",
-                            cq_zone=exception.cq_zone,
-                            itu_zone=exception.itu_zone,
-                            continent=entry.continent,
-                            lat=entry.lat,
-                            lon=entry.lon,
-                            timezone=entry.timezone,
-                            primary_prefix=exception.primary_prefix,
-                            prefixes=[]
-                        )
-                return entry
+                return self.prefix_map[prefix]
 
         # Если не найдено в обычной базе, проверяем точные совпадения (=позывные)
         for exact_prefix in self.exact_prefixes:
@@ -260,6 +290,16 @@ class DXCCDatabase:
 
         matched_prefix = self._find_matched_prefix(callsign)
 
+        # Проверяем, есть ли альтернативные зоны для этого позывного
+        cq_zone_alt = None
+        itu_zone_alt = None
+        callsign_upper = callsign.upper().strip()
+        for exception in self.exceptions:
+            if callsign_upper == exception.callsign_or_prefix:
+                cq_zone_alt = exception.cq_zone_alt
+                itu_zone_alt = exception.itu_zone_alt
+                break
+
         return {
             'callsign': callsign,
             'country': entry.name,
@@ -271,7 +311,9 @@ class DXCCDatabase:
             'timezone': entry.timezone,
             'primary_prefix': entry.primary_prefix,
             'matched_prefix': matched_prefix,
-            'is_exact_match': matched_prefix in self.exact_prefixes if matched_prefix else False
+            'is_exact_match': matched_prefix in self.exact_prefixes if matched_prefix else False,
+            'cq_zone_alt': cq_zone_alt,
+            'itu_zone_alt': itu_zone_alt
         }
 
     def _find_matched_prefix(self, callsign: str) -> Optional[str]:
@@ -373,6 +415,10 @@ def print_dxcc_info(callsign: str, filename: str = "r150cty.dat"):
     print(f"Сопоставленный префикс: {info['matched_prefix']}")
     if info.get('is_exact_match'):
         print(f"Тип совпадения: Точное")
+    if info.get('cq_zone_alt') is not None:
+        print(f"Альтернативная CQ зона: {info['cq_zone_alt']}")
+    if info.get('itu_zone_alt') is not None:
+        print(f"Альтернативная ITU зона: {info['itu_zone_alt']}")
 
 def get_database_instance() -> Optional[DXCCDatabase]:
     """Возвращает текущий экземпляр базы данных"""
@@ -405,20 +451,20 @@ if __name__ == "__main__":
 
         print_dxcc_info(callsign, filename)
     else:
-        print("DXCC Lookup Tool")
+        print("DXCC Lookup Tool (r150s_lookup.py)")
         print("=" * 50)
-        print("Использование: python dxcc_lookup.py <позывной> [файл_базы]")
+        print("Использование: python r150s_lookup.py <позывной> [файл_базы]")
         print()
         print("Примеры:")
-        print("  python dxcc_lookup.py UA3ACW")
-        print("  python dxcc_lookup.py K1ABC")
-        print("  python dxcc_lookup.py JA1XYZ")
-        print("  python dxcc_lookup.py R2FA r150cty.dat")
-        print("  python dxcc_lookup.py UB2FA")
-        print("  python dxcc_lookup.py RA4F")
+        print("  python r150s_lookup.py UA3ACW")
+        print("  python r150s_lookup.py K1ABC")
+        print("  python r150s_lookup.py JA1XYZ")
+        print("  python r150s_lookup.py R2FA r150cty.dat")
+        print("  python r150s_lookup.py UB2FA")
+        print("  python r150s_lookup.py RA4F")
         print()
         print("Дополнительные команды:")
-        print("  python dxcc_lookup.py --export-json   # Экспорт базы в JSON")
+        print("  python r150s_lookup.py --export-json   # Экспорт базы в JSON")
         print()
         print("Для получения файла r150cty.dat посетите:")
         print("https://www.country-files.com/cty/current/r150cty.dat")

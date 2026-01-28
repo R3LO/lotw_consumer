@@ -84,7 +84,7 @@ class DataNormalizer:
         """Инициализация DXCC lookup"""
         try:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-            from dxcc_lookup import get_dxcc_info as get_r150_info
+            from r150s_lookup import get_dxcc_info as get_r150_info
             from cty_lookup import get_dxcc_from_cty
             self._get_r150_info = get_r150_info
             self._get_dxcc_from_cty = get_dxcc_from_cty
