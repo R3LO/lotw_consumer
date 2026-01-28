@@ -23,12 +23,22 @@ class CTYEntry:
     prefixes: List[str]
 
 
+@dataclass
+class CTYException:
+    """Класс для хранения исключений из cty.dat (позывные с = или особые префиксы)"""
+    callsign_or_prefix: str  # Позывной или префикс с = или без
+    cq_zone: int
+    itu_zone: int
+    primary_prefix: str
+
+
 class CTYDatabase:
     """База данных CTY (cty.dat)"""
 
     def __init__(self, filename: str = None):
         self.entries: List[CTYEntry] = []
         self.prefix_map: Dict[str, CTYEntry] = {}
+        self.exceptions: List[CTYException] = []  # Список исключений
 
         if filename is None:
             # Ищем в текущей директории или в директории проекта
@@ -86,6 +96,10 @@ class CTYDatabase:
 
                 # Парсим префиксы из той же строки (после 7-го :)
                 if len(parts) > 8 and parts[8]:
+                    # Проверяем исключения
+                    if '=' in parts[8] or '[' in parts[8]:
+                        self._parse_exceptions(parts[8], current_entry)
+
                     prefixes = self._parse_prefixes(parts[8])
                     current_entry.prefixes.extend(prefixes)
 
@@ -95,6 +109,15 @@ class CTYDatabase:
                 if line:
                     if line.endswith(';'):
                         line = line[:-1]
+
+                    # Проверяем, есть ли исключения (= или [число])
+                    has_exceptions = '=' in line or '[' in line
+                    has_normal_prefixes = any(c for c in line if c.isalpha() or c.isdigit()) and not line.startswith('=')
+
+                    if has_exceptions:
+                        self._parse_exceptions(line, current_entry)
+
+                    # Парсим обычные префиксы
                     prefixes = self._parse_prefixes(line)
                     # R0, R8, R9 должны быть UA9 (Asiatic Russia), а не European Russia
                     if current_entry.name == 'European Russia':
@@ -127,13 +150,77 @@ class CTYDatabase:
             if '[' in part:
                 part = part.split('[')[0]
             if '=' in part:
-                continue  # Пропускаем специальные префиксы
+                continue  # Пропускаем специальные префиксы (они парсятся отдельно)
 
             part = part.strip()
             if part:
                 prefixes.append(part)
 
         return prefixes
+
+    def _parse_exceptions(self, prefix_line: str, entry: CTYEntry):
+        """Парсит исключения из строки (=позывные или особые префиксы)"""
+        prefix_line = prefix_line.strip()
+        if ';' in prefix_line:
+            prefix_line = prefix_line.split(';')[0]
+
+        parts = prefix_line.split(',')
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+
+            # Проверяем на наличие = (исключение)
+            if '=' in part:
+                # Это исключение типа =8J1RL(39)[67]
+                exception_part = part
+                # Извлекаем cq_zone и itu_zone из скобок
+                cq_zone = entry.cq_zone
+                itu_zone = entry.itu_zone
+
+                # Ищем (число) для cq_zone
+                cq_match = re.search(r'\((\d+)\)', exception_part)
+                if cq_match:
+                    cq_zone = int(cq_match.group(1))
+
+                # Ищем [число] для itu_zone
+                itu_match = re.search(r'\[(\d+)\]', exception_part)
+                if itu_match:
+                    itu_zone = int(itu_match.group(1))
+
+                # Извлекаем позывной или префикс (часть до '(' или '[' или '=')
+                clean_part = exception_part.split('(')[0].split('[')[0]
+                if clean_part.startswith('='):
+                    clean_part = clean_part[1:]  # Убираем =
+
+                if clean_part:
+                    exception = CTYException(
+                        callsign_or_prefix=clean_part,
+                        cq_zone=cq_zone,
+                        itu_zone=itu_zone,
+                        primary_prefix=entry.primary_prefix
+                    )
+                    self.exceptions.append(exception)
+            else:
+                # Это особый префикс без = (например, 3Y[73])
+                cq_zone = entry.cq_zone
+                itu_zone = entry.itu_zone
+
+                # Ищем [число] для itu_zone
+                itu_match = re.search(r'\[(\d+)\]', part)
+                if itu_match:
+                    itu_zone = int(itu_match.group(1))
+
+                # Извлекаем префикс (часть до '(' или '[')
+                clean_part = part.split('(')[0].split('[')[0]
+                if clean_part:
+                    exception = CTYException(
+                        callsign_or_prefix=clean_part,
+                        cq_zone=cq_zone,
+                        itu_zone=itu_zone,
+                        primary_prefix=entry.primary_prefix
+                    )
+                    self.exceptions.append(exception)
 
     def _add_entry(self, entry: CTYEntry):
         """Добавляет запись в базу данных"""
@@ -147,11 +234,47 @@ class CTYDatabase:
         """Находит страну по позывному"""
         callsign = callsign.upper().strip()
 
-        # Пробуем разные длины префикса
+        # Сначала ищем в обычной базе (проверяем разные длины префикса)
         for length in range(len(callsign), 0, -1):
             prefix = callsign[:length]
             if prefix in self.prefix_map:
-                return self.prefix_map[prefix]
+                entry = self.prefix_map[prefix]
+                # Проверяем, есть ли исключение для этого конкретного позывного (=позывной)
+                has_specific_exception = False
+                for exception in self.exceptions:
+                    if exception.callsign_or_prefix.startswith('='):
+                        exc_call = exception.callsign_or_prefix[1:]
+                        if callsign == exc_call:
+                            has_specific_exception = True
+                            return CTYEntry(
+                                name=f"Exception: {exc_call}",
+                                cq_zone=exception.cq_zone,
+                                itu_zone=exception.itu_zone,
+                                continent="",
+                                lat=0.0,
+                                lon=0.0,
+                                timezone=0.0,
+                                primary_prefix=exception.primary_prefix,
+                                prefixes=[]
+                            )
+                return entry
+
+        # Если не найдено в обычной базе, проверяем исключения-префиксы (без =)
+        for exception in self.exceptions:
+            if not exception.callsign_or_prefix.startswith('='):
+                # Проверяем совпадение по префиксу
+                if callsign.startswith(exception.callsign_or_prefix):
+                    return CTYEntry(
+                        name=f"Exception prefix: {exception.callsign_or_prefix}",
+                        cq_zone=exception.cq_zone,
+                        itu_zone=exception.itu_zone,
+                        continent="",
+                        lat=0.0,
+                        lon=0.0,
+                        timezone=0.0,
+                        primary_prefix=exception.primary_prefix,
+                        prefixes=[]
+                    )
 
         return None
 
