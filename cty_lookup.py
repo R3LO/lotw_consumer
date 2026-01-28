@@ -239,30 +239,26 @@ class CTYDatabase:
             prefix = callsign[:length]
             if prefix in self.prefix_map:
                 entry = self.prefix_map[prefix]
-                # Проверяем, есть ли исключение для этого конкретного позывного (=позывной)
-                has_specific_exception = False
+                # Проверяем, есть ли исключение для этого конкретного позывного
                 for exception in self.exceptions:
-                    if exception.callsign_or_prefix.startswith('='):
-                        exc_call = exception.callsign_or_prefix[1:]
-                        if callsign == exc_call:
-                            has_specific_exception = True
-                            return CTYEntry(
-                                name=f"Exception: {exc_call}",
-                                cq_zone=exception.cq_zone,
-                                itu_zone=exception.itu_zone,
-                                continent="",
-                                lat=0.0,
-                                lon=0.0,
-                                timezone=0.0,
-                                primary_prefix=exception.primary_prefix,
-                                prefixes=[]
-                            )
+                    if callsign == exception.callsign_or_prefix:
+                        return CTYEntry(
+                            name=f"Exception: {exception.callsign_or_prefix}",
+                            cq_zone=exception.cq_zone,
+                            itu_zone=exception.itu_zone,
+                            continent="",
+                            lat=0.0,
+                            lon=0.0,
+                            timezone=0.0,
+                            primary_prefix=exception.primary_prefix,
+                            prefixes=[]
+                        )
                 return entry
 
-        # Если не найдено в обычной базе, проверяем исключения-префиксы (без =)
+        # Если не найдено в обычной базе, проверяем исключения-префиксы
         for exception in self.exceptions:
-            if not exception.callsign_or_prefix.startswith('='):
-                # Проверяем совпадение по префиксу
+            # Исключения-префиксы - это те, которые короче позывного и не совпадают полностью
+            if len(exception.callsign_or_prefix) < len(callsign):
                 if callsign.startswith(exception.callsign_or_prefix):
                     return CTYEntry(
                         name=f"Exception prefix: {exception.callsign_or_prefix}",

@@ -17,6 +17,15 @@ class DXCCEntry:
     prefixes: List[str]
     exact_prefixes: List[str] = field(default_factory=list)
 
+
+@dataclass
+class DXCCException:
+    """Класс для хранения исключений из r150cty.dat (позывные с = или особые префиксы)"""
+    callsign_or_prefix: str  # Позывной или префикс с = или без
+    cq_zone: int
+    itu_zone: int
+    primary_prefix: str
+
 class DXCCDatabase:
     """База данных DXCC стран"""
 
@@ -24,6 +33,7 @@ class DXCCDatabase:
         self.entries: List[DXCCEntry] = []
         self.prefix_map: Dict[str, DXCCEntry] = {}
         self.exact_prefixes: Dict[str, DXCCEntry] = {}
+        self.exceptions: List[DXCCException] = []  # Список исключений
         self._load_file(filename)
 
     def _load_file(self, filename: str):
@@ -74,6 +84,20 @@ class DXCCDatabase:
                 current_prefixes = []
 
                 if len(parts) > 8 and parts[8]:
+                    # Проверяем исключения (=позывные)
+                    if '=' in parts[8]:
+                        self._parse_exceptions(parts[8], DXCCEntry(
+                            name=current_name,
+                            cq_zone=current_cq_zone,
+                            itu_zone=current_itu_zone,
+                            continent=current_continent,
+                            lat=current_lat,
+                            lon=current_lon,
+                            timezone=current_timezone,
+                            primary_prefix=current_primary_prefix,
+                            prefixes=[]
+                        ))
+
                     prefixes = [p.strip() for p in parts[8].split(',') if p.strip()]
                     current_prefixes.extend(prefixes)
 
@@ -82,6 +106,21 @@ class DXCCDatabase:
                 if line:
                     if line.endswith(';'):
                         line = line[:-1]
+
+                    # Проверяем исключения (=позывные)
+                    if '=' in line:
+                        self._parse_exceptions(line, DXCCEntry(
+                            name=current_name,
+                            cq_zone=current_cq_zone,
+                            itu_zone=current_itu_zone,
+                            continent=current_continent,
+                            lat=current_lat,
+                            lon=current_lon,
+                            timezone=current_timezone,
+                            primary_prefix=current_primary_prefix,
+                            prefixes=[]
+                        ))
+
                     prefixes = [p.strip() for p in line.split(',') if p.strip()]
                     current_prefixes.extend(prefixes)
 
@@ -140,33 +179,75 @@ class DXCCDatabase:
                 self._add_to_prefix_map(clean_prefix, entry)
 
     def _add_to_prefix_map(self, prefix: str, entry: DXCCEntry):
-        """Добавляет префикс в карту, если его еще нет или он длиннее"""
+        """Добавляет префикс в карту, если его еще нет"""
         # Удаляем начальный = если есть
         clean_prefix = prefix.lstrip('=')
 
-        if clean_prefix not in self.prefix_map:
+        if clean_prefix and clean_prefix not in self.prefix_map:
             self.prefix_map[clean_prefix] = entry
-        elif len(clean_prefix) > len(next(iter(self.prefix_map))):
-            # Если новый префикс длиннее существующего, заменяем
-            self.prefix_map[clean_prefix] = entry
+
+    def _parse_exceptions(self, prefix_line: str, entry: DXCCEntry):
+        """Парсит исключения из строки (=позывные)"""
+        prefix_line = prefix_line.strip()
+        if ';' in prefix_line:
+            prefix_line = prefix_line.split(';')[0]
+
+        parts = prefix_line.split(',')
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+
+            # Проверяем на наличие = (исключение)
+            if '=' in part:
+                # Это исключение типа =3D2CCC
+                exception_part = part
+                cq_zone = entry.cq_zone
+                itu_zone = entry.itu_zone
+
+                # Извлекаем позывной (часть до '(' или сразу после =)
+                clean_part = exception_part.split('(')[0].split('[')[0]
+                if clean_part.startswith('='):
+                    clean_part = clean_part[1:]  # Убираем =
+
+                if clean_part:
+                    exception = DXCCException(
+                        callsign_or_prefix=clean_part,
+                        cq_zone=cq_zone,
+                        itu_zone=itu_zone,
+                        primary_prefix=entry.primary_prefix
+                    )
+                    self.exceptions.append(exception)
 
     def find_by_callsign(self, callsign: str) -> Optional[DXCCEntry]:
         """Находит страну DXCC по позывному"""
         callsign = callsign.upper().strip()
 
-        # Сначала проверяем точные совпадения
-        for exact_prefix in self.exact_prefixes:
-            if callsign.startswith(exact_prefix):
-                # Проверяем, что после префикса либо ничего, либо цифра/буква
-                remaining = callsign[len(exact_prefix):]
-                if not remaining or remaining[0].isdigit() or remaining[0].isalpha():
-                    return self.exact_prefixes[exact_prefix]
-
-        # Затем проверяем обычные префиксы (от длинных к коротким)
+        # Сначала ищем в обычных префиксах (от длинных к коротким)
         for length in range(len(callsign), 0, -1):
             prefix = callsign[:length]
             if prefix in self.prefix_map:
-                return self.prefix_map[prefix]
+                entry = self.prefix_map[prefix]
+                # Проверяем, есть ли исключение (=позывной) для этого конкретного позывного
+                for exception in self.exceptions:
+                    if callsign == exception.callsign_or_prefix:
+                        return DXCCEntry(
+                            name=f"Exception: {exception.callsign_or_prefix}",
+                            cq_zone=exception.cq_zone,
+                            itu_zone=exception.itu_zone,
+                            continent=entry.continent,
+                            lat=entry.lat,
+                            lon=entry.lon,
+                            timezone=entry.timezone,
+                            primary_prefix=exception.primary_prefix,
+                            prefixes=[]
+                        )
+                return entry
+
+        # Если не найдено в обычной базе, проверяем точные совпадения (=позывные)
+        for exact_prefix in self.exact_prefixes:
+            if callsign.startswith(exact_prefix):
+                return self.exact_prefixes[exact_prefix]
 
         return None
 
