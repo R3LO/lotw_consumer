@@ -22,6 +22,14 @@ class ADIFParser:
             self.logger.info("ℹ️ В ответе нет данных QSO")
             return qso_list
 
+        # Удаляем <APP_LoTW_EOF> и всё после него перед разбором
+        if '<APP_LoTW_EOF>' in content:
+            content = content.split('<APP_LoTW_EOF>')[0]
+
+        # Удаляем заголовок <eoh> и всё до него
+        if '<eoh>' in content:
+            content = content.split('<eoh>', 1)[1]
+
         qso_blocks = content.split('<eor>')
 
         for block_num, block in enumerate(qso_blocks, 1):

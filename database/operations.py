@@ -303,17 +303,30 @@ class DatabaseOperations:
             update_qsos = []
 
             for q in normalized_list:
-                # Проверяем, есть ли точное совпадение времени (±0 сек)
+                # Проверяем, есть ли совпадение времени (±5 минут)
                 found = False
                 for ex in existing_qsos:
                     if (q['callsign'] == ex['callsign'] and
                         str(q['date']) == str(ex['date']) and
                         q['band'] == ex['band'] and
-                        q['mode'] == ex['mode'] and
-                        q['time'][:5] == str(ex['time'])[:5]):
-                        update_qsos.append(q)
-                        found = True
-                        break
+                        q['mode'] == ex['mode']):
+                        # Проверяем время с погрешностью ±5 минут (300 секунд)
+                        try:
+                            new_time = q['time'][:5]
+                            h, m = map(int, new_time.split(':'))
+                            new_seconds = h * 3600 + m * 60
+
+                            ex_time = str(ex['time'])[:5]
+                            h, m = map(int, ex_time.split(':'))
+                            existing_seconds = h * 3600 + m * 60
+
+                            time_diff = abs(new_seconds - existing_seconds)
+                            if time_diff <= 300:  # 5 минут = 300 секунд
+                                update_qsos.append(q)
+                                found = True
+                                break
+                        except Exception:
+                            continue
 
                 if not found:
                     new_qsos.append(q)
@@ -457,11 +470,13 @@ class DatabaseOperations:
                         created_at, updated_at
                     ) VALUES {', '.join(values)}
                     ON CONFLICT ON CONSTRAINT unique_qso DO NOTHING
+                    RETURNING 1
                 """
 
                 cur.execute(query, params)
+                inserted_rows = cur.fetchall()
                 conn.commit()
-                return cur.rowcount
+                return len(inserted_rows) if inserted_rows else 0
 
         except Exception as e:
             conn.rollback()
