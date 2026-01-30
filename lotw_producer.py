@@ -168,6 +168,84 @@ class LoTWProducer:
             self.logger.error(f"Неожиданная ошибка при подключении к БД: {e}")
             return None
 
+    def extract_callsigns_list(self) -> List[str]:
+        """
+        Извлекает все позывные из базы данных my_callsigns в формате списка ["R3LO", "R3LO/1"]
+        Возвращает простой список позывных без учетных данных
+        """
+        callsign_list = []
+        conn = None
+
+        try:
+            conn = self.get_db_connection()
+            if not conn:
+                return []
+
+            # Получаем все записи из таблицы с проверкой: lotw_chk_pass = TRUE
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id,
+                        callsign,
+                        my_callsigns,
+                        lotw_user,
+                        lotw_password,
+                        lotw_lastsync
+                    FROM tlog_radioprofile
+                    WHERE lotw_user IS NOT NULL
+                    AND lotw_user != ''
+                    AND lotw_password IS NOT NULL
+                    AND lotw_password != ''
+                    AND lotw_chk_pass = TRUE
+                    ORDER BY id ASC
+                """)
+                rows = cur.fetchall()
+
+                total_rows = len(rows)
+
+                for row in rows:
+                    user_id, callsign_data, my_callsigns, lotw_user, lotw_password, lotw_lastsync = row
+
+                    # Обрабатываем основной позывной
+                    if callsign_data:
+                        callsign_str = self.extract_callsign_name(callsign_data)
+                        if callsign_str:
+                            callsign_list.append(callsign_str.upper())
+
+                    # Обрабатываем позывные из my_callsigns
+                    if my_callsigns:
+                        callsigns_list = self.parse_my_callsigns(my_callsigns)
+                        for callsign_item in callsigns_list:
+                            callsign_name = self.extract_callsign_name(callsign_item)
+                            if callsign_name:
+                                callsign_list.append(callsign_name.upper())
+
+            # Удаляем дубликаты и сортируем
+            callsign_list = sorted(list(set(callsign_list)))
+
+            self.logger.info(f"Получено {len(callsign_list)} уникальных позывных из базы данных (lotw_chk_pass = TRUE)")
+
+            # Дополнительная информация для отладки
+            if callsign_list:
+                self.logger.debug(f"Пример позывных: {callsign_list[:5]}...")
+
+                # Сохраняем в файл для проверки
+                try:
+                    with open('callsigns_list_debug.json', 'w', encoding='utf-8') as f:
+                        json.dump(callsign_list, f, indent=2, ensure_ascii=False)
+                    self.logger.debug("Сохранен отладочный файл: callsigns_list_debug.json")
+                except Exception as e:
+                    self.logger.debug(f"Не удалось сохранить отладочный файл: {e}")
+
+            return callsign_list
+
+        except Exception as e:
+            self.logger.error(f"Ошибка при чтении базы данных: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+
     def extract_callsigns_with_credentials(self) -> Dict[str, Dict[str, Any]]:
         """
         Извлекает все позывные из базы данных с их логинами и паролями LOTW
@@ -360,40 +438,153 @@ class LoTWProducer:
 
         return False
 
+    def test_rabbitmq_messages(self, batch_delay: Optional[float] = None):
+        """
+        Тестовый режим: получить данные из БД и показать сообщения RabbitMQ без отправки
+        """
+        if batch_delay is None:
+            batch_delay = BATCH_DELAY
+
+        self.logger.info(f"ТЕСТОВЫЙ РЕЖИМ - Получение данных из БД и показ сообщений RabbitMQ")
+        self.logger.info(f"   Задержка: {batch_delay} сек")
+
+        # Получаем позывные в формате списка
+        callsigns_list = self.extract_callsigns_list()
+
+        if not callsigns_list:
+            self.logger.warning("Не найдено позывных для тестирования")
+            self.logger.info("Проверьте наличие записей в таблице tlog_radioprofile с заполненными lotw_user, lotw_password и lotw_chk_pass = TRUE")
+            return None
+
+        # Получаем полные данные
+        callsigns_with_credentials = self.extract_callsigns_with_credentials()
+
+        if not callsigns_with_credentials:
+            self.logger.error("Не удалось получить учетные данные")
+            return None
+
+        total = len(callsigns_list)
+        would_be_sent = 0
+        not_found = 0
+
+        self.logger.info(f"Будет получено {total} сообщений из базы данных:")
+        self.logger.info(f"   Позывные: {', '.join(callsigns_list[:10])}{'...' if total > 10 else ''}")
+
+        print("\n" + "="*80)
+        print(" ТЕСТОВЫЙ РЕЖИМ - СООБЩЕНИЯ ДЛЯ RABBITMQ")
+        print("="*80)
+        print(f"Всего позывных в базе: {total}")
+        print(f"Позывные: {callsigns_list}")
+        print()
+
+        # Показываем каждое сообщение, которое БЫЛО БЫ отправлено
+        for i, callsign in enumerate(callsigns_list, 1):
+            if callsign in callsigns_with_credentials:
+                credentials = callsigns_with_credentials[callsign]
+                would_be_sent += 1
+
+                # Формируем сообщение как оно было бы отправлено
+                message = {
+                    "action": "lotw_sync",
+                    "callsign": callsign,
+                    "lotw_user": credentials["lotw_user"],
+                    "lotw_password": credentials["lotw_password"],
+                    "user_id": credentials["user_id"],
+                    "timestamp": datetime.now().isoformat(),
+                    "test_mode": True  # Отметка что это тестовый режим
+                }
+
+                print(f"СООБЩЕНИЕ #{i}:")
+                print(f"  Позывной: {callsign}")
+                print(f"  LoTW пользователь: {credentials['lotw_user']}")
+                print(f"  Пользователь ID: {credentials['user_id']}")
+                print(f"  JSON для RabbitMQ:")
+                print(f"  {json.dumps(message, indent=4, ensure_ascii=False)}")
+                print(f"  -> БЫЛО БЫ ОТПРАВЛЕНО в очередь: {RABBITMQ_QUEUE}")
+                print()
+
+            else:
+                not_found += 1
+                self.logger.warning(f"Позывной {callsign} не найден в базе данных с учетными данными")
+                print(f"СООБЩЕНИЕ #{i}:")
+                print(f"  Позывной: {callsign}")
+                print(f"  ❌ НЕТ УЧЕТНЫХ ДАННЫХ - НЕ БУДЕТ ОТПРАВЛЕНО")
+                print()
+
+            # Имитация задержки
+            if i < total:
+                time.sleep(min(batch_delay, 0.1))  # Уменьшенная задержка для теста
+
+        print("="*80)
+        print(" СТАТИСТИКА ТЕСТОВОГО РЕЖИМА")
+        print("="*80)
+        print(f"Всего позывных в базе: {total}")
+        print(f"Будет отправлено: {would_be_sent}")
+        print(f"Не найдено учетных данных: {not_found}")
+        print(f"Формат данных: {callsigns_list}")
+        print(f"Время завершения: {datetime.now().isoformat()}")
+        print("="*80)
+        print("OK ТЕСТ ЗАВЕРШЕН - Никаких сообщений не отправлено в RabbitMQ")
+        print("="*80)
+
+        # Возвращаем статистику
+        return {
+            'total': total,
+            'would_be_sent': would_be_sent,
+            'not_found': not_found,
+            'callsigns_list': callsigns_list,
+            'test_mode': True,
+            'timestamp': datetime.now().isoformat()
+        }
+
     def sync_all_callsigns(self, batch_delay: Optional[float] = None):
-        """Синхронизирует все позывные из базы данных"""
+        """Синхронизирует все позывные из базы данных (новый метод с форматом списка)"""
         if batch_delay is None:
             batch_delay = BATCH_DELAY
 
         self.logger.info(f"Начало синхронизации всех позывных")
         self.logger.info(f"   Задержка: {batch_delay} сек")
 
-        # Получаем позывные из БД (используем вашу логику)
-        callsigns = self.extract_callsigns_with_credentials()
+        # Получаем позывные в формате списка
+        callsigns_list = self.extract_callsigns_list()
 
-        if not callsigns:
+        if not callsigns_list:
             self.logger.warning("Не найдено позывных для синхронизации")
             self.logger.info("Проверьте наличие записей в таблице tlog_radioprofile с заполненными lotw_user, lotw_password и lotw_chk_pass = TRUE")
             return None
 
-        total = len(callsigns)
+        # Получаем полные данные для отправки в RabbitMQ
+        callsigns_with_credentials = self.extract_callsigns_with_credentials()
+
+        if not callsigns_with_credentials:
+            self.logger.error("Не удалось получить учетные данные для отправки задач")
+            return None
+
+        total = len(callsigns_list)
         success = 0
         failed = 0
+        not_found = 0
 
         self.logger.info(f"Начинаю отправку {total} задач...")
-        self.logger.info(f"   Позывные: {', '.join(sorted(callsigns.keys())[:10])}{'...' if total > 10 else ''}")
+        self.logger.info(f"   Позывные: {', '.join(callsigns_list[:10])}{'...' if total > 10 else ''}")
 
-        # Отправляем задачи
-        for i, (callsign, credentials) in enumerate(callsigns.items(), 1):
+        # Отправляем задачи из списка
+        for i, callsign in enumerate(callsigns_list, 1):
             # Логируем прогресс каждые 5 задач
             if i % 5 == 0 or i == total:
                 self.logger.info(f"Прогресс: {i}/{total} ({i/total*100:.1f}%)")
 
-            # Отправляем задачу
-            if self.send_task(callsign, credentials):
-                success += 1
+            # Проверяем наличие учетных данных для этого позывного
+            if callsign in callsigns_with_credentials:
+                credentials = callsigns_with_credentials[callsign]
+                # Отправляем задачу
+                if self.send_task(callsign, credentials):
+                    success += 1
+                else:
+                    failed += 1
             else:
-                failed += 1
+                not_found += 1
+                self.logger.warning(f"Позывной {callsign} не найден в базе данных с учетными данными")
 
             # Задержка между отправками
             if i < total:
@@ -401,14 +592,85 @@ class LoTWProducer:
 
         # Статистика
         self.logger.info(f"Синхронизация завершена")
-        self.logger.info(f"   Успешно: {success}, Ошибок: {failed}, Всего: {total}")
+        self.logger.info(f"   Успешно: {success}, Ошибок: {failed}, Не найдено: {not_found}, Всего: {total}")
 
         # Возвращаем статистику
         return {
             'total': total,
             'success': success,
             'failed': failed,
-            'callsigns': list(callsigns.keys()),
+            'not_found': not_found,
+            'callsigns_list': callsigns_list,
+            'timestamp': datetime.now().isoformat()
+        }
+
+    def sync_callsigns_from_list(self, batch_delay: Optional[float] = None):
+        """
+        Синхронизирует все позывные из базы данных в формате списка ["R3LO", "R3LO/1"]
+        Новый метод с упрощенным форматом данных
+        """
+        if batch_delay is None:
+            batch_delay = BATCH_DELAY
+
+        self.logger.info(f"Начало синхронизации позывных из списка")
+        self.logger.info(f"   Задержка: {batch_delay} сек")
+
+        # Получаем позывные в формате списка
+        callsigns_list = self.extract_callsigns_list()
+
+        if not callsigns_list:
+            self.logger.warning("Не найдено позывных для синхронизации")
+            self.logger.info("Проверьте наличие записей в таблице tlog_radioprofile с заполненными lotw_user, lotw_password и lotw_chk_pass = TRUE")
+            return None
+
+        # Получаем полные данные для отправки в RabbitMQ
+        callsigns_with_credentials = self.extract_callsigns_with_credentials()
+
+        if not callsigns_with_credentials:
+            self.logger.error("Не удалось получить учетные данные для отправки задач")
+            return None
+
+        total = len(callsigns_list)
+        success = 0
+        failed = 0
+        not_found = 0
+
+        self.logger.info(f"Начинаю отправку {total} задач из списка...")
+        self.logger.info(f"   Позывные: {', '.join(callsigns_list[:10])}{'...' if total > 10 else ''}")
+
+        # Отправляем задачи из списка
+        for i, callsign in enumerate(callsigns_list, 1):
+            # Логируем прогресс каждые 5 задач
+            if i % 5 == 0 or i == total:
+                self.logger.info(f"Прогресс: {i}/{total} ({i/total*100:.1f}%)")
+
+            # Проверяем наличие учетных данных для этого позывного
+            if callsign in callsigns_with_credentials:
+                credentials = callsigns_with_credentials[callsign]
+                # Отправляем задачу
+                if self.send_task(callsign, credentials):
+                    success += 1
+                else:
+                    failed += 1
+            else:
+                not_found += 1
+                self.logger.warning(f"Позывной {callsign} не найден в базе данных с учетными данными")
+
+            # Задержка между отправками
+            if i < total:
+                time.sleep(batch_delay)
+
+        # Статистика
+        self.logger.info(f"Синхронизация завершена")
+        self.logger.info(f"   Успешно: {success}, Ошибок: {failed}, Не найдено: {not_found}, Всего: {total}")
+
+        # Возвращаем статистику
+        return {
+            'total': total,
+            'success': success,
+            'failed': failed,
+            'not_found': not_found,
+            'callsigns_list': callsigns_list,
             'timestamp': datetime.now().isoformat()
         }
 
@@ -419,7 +681,7 @@ class LoTWProducer:
 
         self.logger.info(f"Синхронизация указанных позывных: {', '.join(callsigns_list)}")
 
-        # Получаем все позывные
+        # Получаем все позывные с учетными данными
         all_callsigns = self.extract_callsigns_with_credentials()
 
         success = 0
@@ -446,6 +708,13 @@ class LoTWProducer:
 
         self.logger.info(f"Завершено")
         self.logger.info(f"   Успешно: {success}, Ошибок: {failed}, Не найдено: {not_found}")
+
+    def get_callsigns_list_only(self) -> List[str]:
+        """
+        Получает только список позывных из базы данных my_callsigns
+        Возвращает простой список ["R3LO", "R3LO/1"]
+        """
+        return self.extract_callsigns_list()
 
     def check_queue_status(self) -> Tuple[Optional[int], Optional[int]]:
         """Проверяет статус очереди"""
@@ -481,9 +750,13 @@ class LoTWProducer:
         """Тестирует подключение к БД и показывает найденные позывные"""
         self.logger.info("Тестирование подключения к базе данных...")
 
-        callsigns = self.extract_callsigns_with_credentials()
+        # Получаем позывные в новом формате списка
+        callsigns_list = self.extract_callsigns_list()
 
-        if not callsigns:
+        # Получаем позывные с учетными данными для сравнения
+        callsigns_with_credentials = self.extract_callsigns_with_credentials()
+
+        if not callsigns_list:
             self.logger.error("Не найдено позывных в базе данных")
             self.logger.info("Проверьте:")
             self.logger.info("1. Таблица tlog_radioprofile существует")
@@ -491,14 +764,28 @@ class LoTWProducer:
             self.logger.info("3. Поле lotw_chk_pass = TRUE")
             return False
 
-        self.logger.info(f"Найдено {len(callsigns)} позывных (lotw_chk_pass = TRUE):")
+        self.logger.info(f"Найдено {len(callsigns_list)} уникальных позывных в формате списка:")
 
-        # Показываем первые 10 позывных с логинами
-        for i, (callsign, credentials) in enumerate(list(callsigns.items())[:10], 1):
-            self.logger.info(f"   {i}. {callsign} - Логин: {credentials['lotw_user']}")
+        # Демонстрируем новый формат
+        self.logger.info(f"   Формат списка: {callsigns_list}")
 
-        if len(callsigns) > 10:
-            self.logger.info(f"   ... и еще {len(callsigns) - 10} позывных")
+        if callsigns_with_credentials:
+            self.logger.info(f"Учетные данные найдены для {len(callsigns_with_credentials)} позывных:")
+
+            # Показываем первые 10 позывных с логинами
+            for i, (callsign, credentials) in enumerate(list(callsigns_with_credentials.items())[:10], 1):
+                self.logger.info(f"   {i}. {callsign} - Логин: {credentials['lotw_user']}")
+
+            if len(callsigns_with_credentials) > 10:
+                self.logger.info(f"   ... и еще {len(callsigns_with_credentials) - 10} позывных")
+
+        # Сохраняем список в файл для проверки
+        try:
+            with open('callsigns_list_output.json', 'w', encoding='utf-8') as f:
+                json.dump(callsigns_list, f, indent=2, ensure_ascii=False)
+            self.logger.info(f"Список позывных сохранен в файл: callsigns_list_output.json")
+        except Exception as e:
+            self.logger.debug(f"Не удалось сохранить файл: {e}")
 
         return True
 
@@ -507,7 +794,7 @@ class LoTWProducer:
         try:
             if hasattr(self, 'connection') and self.connection and self.connection.is_open:
                 self.connection.close()
-                self.logger.info("🔌 Соединение с RabbitMQ закрыто")
+                self.logger.info("Соединение с RabbitMQ закрыто")
         except Exception as e:
             self.logger.error(f"Ошибка при закрытии соединения: {e}")
 
@@ -519,7 +806,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Примеры использования:
-  %(prog)s --all                   # Синхронизировать все позывные
+  %(prog)s --all                   # Синхронизировать все позывные (формат списка)
+  %(prog)s --all --dry-run        # Тест: показать сообщения без отправки в RabbitMQ
+  %(prog)s --all --dry-run --stats # Тест со статистикой
   %(prog)s --callsigns UA1ABC,UA1XYZ  # Синхронизировать указанные позывные
   %(prog)s --status               # Проверить статус очереди
   %(prog)s --recreate             # Пересоздать очередь (при ошибке параметров)
@@ -528,7 +817,8 @@ def main():
         """
     )
 
-    parser.add_argument('--all', action='store_true', help='Синхронизировать все позывные')
+    parser.add_argument('--all', action='store_true', help='Синхронизировать все позывные (формат списка ["R3LO", "R3LO/1"])')
+    parser.add_argument('--dry-run', action='store_true', help='Тестовый режим: показать сообщения RabbitMQ без отправки')
     parser.add_argument('--callsigns', type=str, help='Синхронизировать указанные позывные (через запятую)')
     parser.add_argument('--status', action='store_true', help='Проверить статус очереди')
     parser.add_argument('--delay', type=float, help=f'Задержка между отправками (сек, по умолчанию: {BATCH_DELAY})')
@@ -590,18 +880,32 @@ def main():
             producer.sync_specific_callsigns(callsigns, batch_delay=delay)
 
         elif args.all:
-            # Полная синхронизация
+            # Полная синхронизация (формат списка)
             delay = args.delay if args.delay is not None else BATCH_DELAY
-            stats = producer.sync_all_callsigns(batch_delay=delay)
 
-            if args.stats and stats:
-                print(f"\nСТАТИСТИКА СИНХРОНИЗАЦИИ")
-                print(f"Всего позывных: {stats['total']}")
-                print(f"Успешно отправлено: {stats['success']}")
-                print(f"Ошибок отправки: {stats['failed']}")
-                print(f"Количество позывных: {len(stats['callsigns'])}")
-                print(f"Время завершения: {stats['timestamp']}")
-                print(f"\nПозывные: {', '.join(stats['callsigns'][:10])}{'...' if len(stats['callsigns']) > 10 else ''}")
+            if args.dry_run:
+                # Тестовый режим - показать сообщения без отправки
+                stats = producer.test_rabbitmq_messages(batch_delay=delay)
+
+                if args.stats and stats:
+                    print(f"\nСТАТИСТИКА ТЕСТОВОГО РЕЖИМА")
+                    print(f"Всего позывных: {stats['total']}")
+                    print(f"Будет отправлено: {stats['would_be_sent']}")
+                    print(f"Не найдено учетных данных: {stats['not_found']}")
+                    print(f"Формат списка: {stats.get('callsigns_list', [])}")
+                    print(f"Время завершения: {stats['timestamp']}")
+            else:
+                # Обычная синхронизация с отправкой в RabbitMQ
+                stats = producer.sync_all_callsigns(batch_delay=delay)
+
+                if args.stats and stats:
+                    print(f"\nСТАТИСТИКА СИНХРОНИЗАЦИИ (формат списка)")
+                    print(f"Всего позывных: {stats['total']}")
+                    print(f"Успешно отправлено: {stats['success']}")
+                    print(f"Ошибок отправки: {stats['failed']}")
+                    print(f"Не найдено учетных данных: {stats.get('not_found', 0)}")
+                    print(f"Формат списка: {stats.get('callsigns_list', [])}")
+                    print(f"Время завершения: {stats['timestamp']}")
 
         else:
             # По умолчанию показываем справку
