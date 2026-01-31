@@ -1,0 +1,67 @@
+============================================================
+LoTW API Response
+Дата запроса: 2026-01-31T08:59:32.281472
+Позывной: R3LO
+============================================================
+
+STATUS CODE:
+200
+
+HEADERS:
+  Date: Sat, 31 Jan 2026 05:59:31 GMT
+  Server: Apache/2.4.62 (Red Hat Enterprise Linux) OpenSSL/3.2.2
+  Accept-Ranges: none
+  Set-Cookie: lotw-login=1270998112.32947; Domain=lotw.arrl.org; Path=/; Secure; Version=1
+  Cache-Control: max-age=0
+  Expires: Sat, 31 Jan 2026 05:59:31 GMT
+  Keep-Alive: timeout=5, max=100
+  Connection: Keep-Alive
+  Transfer-Encoding: chunked
+  Content-Type: application/x-arrl-adif; charset=iso-8859-1
+
+RESPONSE BODY:
+----------------------------------------
+ARRL Logbook of the World Status Report
+Generated at 2026-01-31 05:59:32
+for r3lo
+Query:
+     OWNCALL: R3LO
+    QSL ONLY: YES
+QSL RX SINCE: 2026-01-31 05:16:03 (system supplied default)
+
+<PROGRAMID:4>LoTW
+<APP_LoTW_LASTQSL:19>2026-01-31 05:16:03
+
+<APP_LoTW_NUMREC:1>1
+
+<eoh>
+
+<APP_LoTW_OWNCALL:4>R3LO
+<STATION_CALLSIGN:4>R3LO
+<CALL:6>UN7PBK
+<BAND:4>13CM
+<FREQ:10>2380.04083
+<FREQ_RX:10>2380.04138
+<MODE:4>MFSK
+<SUBMODE:3>FT4
+<APP_LoTW_MODEGROUP:4>DATA
+<QSO_DATE:8>20260110
+<APP_LoTW_RXQSO:19>2026-01-12 12:29:26 // QSO record inserted/modified at LoTW
+<TIME_ON:6>141137
+<APP_LoTW_QSO_TIMESTAMP:20>2026-01-10T14:11:37Z // QSO Date & Time; ISO-8601
+<PROP_MODE:3>SAT
+<SAT_NAME:6>QO-100
+<QSL_RCVD:1>Y
+<QSLRDATE:8>20260131
+<APP_LoTW_RXQSL:19>2026-01-31 05:16:03 // QSL record matched/modified at LoTW
+<DXCC:3>130
+<COUNTRY:10>KAZAKHSTAN
+<APP_LoTW_DXCC_ENTITY_STATUS:7>Current
+<APP_LoTW_2xQSL:1>Y
+<GRIDSQUARE:6>MN69MT
+<CQZ:2>17
+<eor>
+
+<APP_LoTW_EOF>
+
+

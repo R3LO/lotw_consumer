@@ -5,7 +5,7 @@
 import json
 import pika
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from config import (
     MAX_RETRIES, RABBITMQ_QUEUE, RABBITMQ_EXCHANGE,
@@ -69,6 +69,25 @@ class MessageHandler:
                 self.logger.error(f"Ошибка получения данных из LoTW: {lotw_result.get('error')}")
                 return lotw_result
 
+            # ДИАГНОСТИКА: проверяем что пришло от API
+            qso_data_from_api = lotw_result.get('qso_data', [])
+            self.logger.info(f"🔍 Обработчик: от API получено {len(qso_data_from_api)} QSO")
+
+            # Показываем первые несколько QSO для диагностики
+            for i, qso in enumerate(qso_data_from_api[:5]):
+                self.logger.info(f"🔍 Обработчик QSO #{i+1}: CALL={qso.get('CALL')}, BAND={qso.get('BAND')}, MODE={qso.get('MODE')}")
+                self.logger.info(f"🔍 Обработчик QSO #{i+1}: QSO_DATE={qso.get('QSO_DATE')}, TIME_ON={qso.get('TIME_ON')}")
+
+                # Проверяем APP_LOTW_RXQSL
+                app_rxqsl = qso.get('APP_LOTW_RXQSL')
+                if app_rxqsl:
+                    self.logger.info(f"🔍 Обработчик QSO #{i+1}: APP_LOTW_RXQSL={app_rxqsl}")
+                else:
+                    self.logger.info(f"🔍 Обработчик QSO #{i+1}: APP_LOTW_RXQSL=ОТСУТСТВУЕТ")
+
+            if len(qso_data_from_api) > 5:
+                self.logger.info(f"🔍 ... и еще {len(qso_data_from_api) - 5} QSO")
+
             # Обрабатываем данные
             result = self.db_ops.process_qso_batch(
                 lotw_result['qso_data'],
@@ -85,13 +104,40 @@ class MessageHandler:
                 )
 
                 # Обновляем lotw_lastsync
-                created_at_str = task.get('created_at', datetime.now().date().isoformat())
-                # Извлекаем дату в формате YYYY-MM-DD
-                if 'T' in created_at_str:
-                    lotw_date = created_at_str.split('T')[0]
+                created_at_str = task.get('created_at', '')
+                if created_at_str:
+                    # Парсим строку в datetime объект
+                    if 'T' in created_at_str:
+                        lotw_datetime = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                        # Конвертируем в naive datetime для консистентности
+                        if lotw_datetime.tzinfo is not None:
+                            lotw_datetime = lotw_datetime.replace(tzinfo=None)
+                        self.logger.info(f"🔍 Parsed ISO datetime: {lotw_datetime}")
+                    else:
+                        # Попытка парсинга строки в различных форматах
+                        lotw_datetime = None
+
+                        # Пробуем формат YYYY-MM-DD HH:MM:SS
+                        try:
+                            lotw_datetime = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
+                            self.logger.info(f"🔍 Parsed string datetime (full): {lotw_datetime}")
+                        except ValueError:
+                            # Пробуем формат YYYY-MM-DD (только дата)
+                            try:
+                                lotw_datetime = datetime.strptime(created_at_str, '%Y-%m-%d')
+                                # Добавляем время 00:00:00 для консистентности
+                                lotw_datetime = lotw_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
+                                self.logger.info(f"🔍 Parsed string datetime (date only): {lotw_datetime}")
+                            except ValueError:
+                                # Если не получается, используем текущее время
+                                lotw_datetime = datetime.now(timezone.utc)
+                                self.logger.warning(f"⚠️ Failed to parse datetime string '{created_at_str}', using current time: {lotw_datetime}")
                 else:
-                    lotw_date = created_at_str
-                self.db_ops.update_lotw_lastsync(user_id, lotw_date)
+                    lotw_datetime = datetime.now(timezone.utc)
+                    self.logger.info(f"🔍 Using current datetime: {lotw_datetime}")
+
+                self.logger.info(f"🔍 Calling update_lotw_lastsync with: {lotw_datetime} (type: {type(lotw_datetime)})")
+                self.db_ops.update_lotw_lastsync(user_id, lotw_datetime)
 
                 self.logger.info(f"Задача {task_id} успешно обработана")
                 self.logger.info(f"   QSO: добавлено {result.get('qso_added', 0)}, обновлено {result.get('qso_updated', 0)}")
@@ -167,7 +213,7 @@ class MessageHandler:
 
                 if retry_count <= self.max_retries:
                     task['retry_count'] = retry_count
-                    task['last_retry'] = datetime.now().isoformat()
+                    task['last_retry'] = datetime.now(timezone.utc).isoformat()
                     task['last_error'] = result.get('error', 'Unknown error')
 
                     # Фиксированная задержка 45 минут (2700000 мс)

@@ -49,9 +49,10 @@ def lotw_request(
     # Добавляем qso_qslsince если есть дата последней синхронизации
     # LoTW ожидает формат YYYYMMDD
     if lotw_lastsync:
-        # Убираем дефисы если они есть (YYYY-MM-DD -> YYYYMMDD)
-        lotw_lastsync_clean = lotw_lastsync.replace('-', '').replace('/', '')
-        data['qso_qslsince'] = lotw_lastsync_clean
+    #     # Убираем дефисы если они есть (YYYY-MM-DD -> YYYYMMDD)
+    #     lotw_lastsync_clean = lotw_lastsync.replace('-', '').replace('/', '')
+          # data['qso_qslsince'] = lotw_lastsync_clean
+          data['qso_qslsince'] = lotw_lastsync
 
     headers = {
         'Accept': 'application/xml',

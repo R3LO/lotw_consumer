@@ -14,7 +14,7 @@ import os
 import re
 import uuid
 import psycopg2
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from config import (
     DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_SCHEMA
@@ -293,7 +293,6 @@ class DatabaseOperations:
 
     def find_existing_qso(self, qso_data, user_id):
         """Ищет существующую QSO"""
-        from datetime import datetime, timedelta
 
         callsign = qso_data.get('CALL', '').upper()
         my_callsign = qso_data.get('STATION_CALLSIGN', '') or qso_data.get('MY_CALLSIGN', '')
@@ -640,7 +639,7 @@ class TestConsumerADIF:
         print(" ОБНОВЛЕНИЕ lotw_lastsync")
         print("=" * 60)
 
-        created_at = datetime.now().date().isoformat()
+        created_at = datetime.now(timezone.utc)
         if self.db_ops.update_lotw_lastsync(user_id, created_at):
             print(f"  lotw_lastsync обновлен: {created_at}")
         else:

@@ -25,6 +25,9 @@ class QSO:
     r150s: str = ''
     gridsquare: str = ''
     my_gridsquare: str = ''
+    vucc_grids: str = ''
+    iota: str = ''
+    app_lotw_rxqsl: Optional[datetime] = None
     rst_sent: str = ''
     rst_rcvd: str = ''
     ru_region: Optional[str] = None
@@ -60,6 +63,9 @@ class QSO:
             'r150s': self.r150s,
             'gridsquare': self.gridsquare,
             'my_gridsquare': self.my_gridsquare,
+            'vucc_grids': self.vucc_grids,
+            'iota': self.iota,
+            'app_lotw_rxqsl': self.app_lotw_rxqsl,
             'rst_sent': self.rst_sent,
             'rst_rcvd': self.rst_rcvd,
             'ru_region': self.ru_region,

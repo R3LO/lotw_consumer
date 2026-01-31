@@ -32,12 +32,20 @@ class ADIFParser:
 
         qso_blocks = content.split('<eor>')
 
+        self.logger.info(f"🔍 Парсер: найдено {len(qso_blocks)} блоков после разделения по <eor>")
+
         for block_num, block in enumerate(qso_blocks, 1):
-            if not block.strip() or '<eoh>' in block:
+            self.logger.debug(f"🔍 Блок #{block_num}: {len(block)} символов")
+
+            if not block.strip():
+                self.logger.debug(f"🔍 Блок #{block_num}: пустой, пропускаем")
                 continue
 
             if '<eoh>' in block:
+                self.logger.debug(f"🔍 Блок #{block_num}: содержит <eoh>, берем часть после него")
+                original_block = block
                 block = block.split('<eoh>')[1]
+                self.logger.debug(f"🔍 Блок #{block_num}: обрезан с {len(original_block)} до {len(block)} символов")
 
             block = re.sub(r'//.*', '', block)
 
@@ -47,6 +55,7 @@ class ADIFParser:
 
             matches = re.findall(pattern, block)
 
+            self.logger.debug(f"🔍 Блок #{block_num}: найдено {len(matches)} полей")
             for field_name, length, value in matches:
                 field_name = field_name.upper()
 
@@ -59,7 +68,15 @@ class ADIFParser:
                     qso[field_name] = value
                     fields_found.append(field_name)
 
-            if qso and 'CALL' in qso:
-                qso_list.append(qso)
+            self.logger.debug(f"🔍 Блок #{block_num}: CALL={qso.get('CALL', 'НЕТ')}, найдено полей: {len(fields_found)}")
+            if qso.get('CALL'):
+                self.logger.debug(f"🔍 Блок #{block_num}: поля {', '.join(fields_found[:10])}...")
 
+            if qso and 'CALL' in qso:
+                self.logger.info(f"✅ Блок #{block_num}: добавлен QSO {qso['CALL']}")
+                qso_list.append(qso)
+            else:
+                self.logger.debug(f"🔍 Блок #{block_num}: пропущен (нет CALL или пустой)")
+
+        self.logger.info(f"🔍 Парсер: итого добавлено {len(qso_list)} QSO")
         return qso_list

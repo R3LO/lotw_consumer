@@ -4,6 +4,7 @@
 
 import re
 from typing import Dict, Any, Optional
+from datetime import datetime
 
 from r150s_lookup import get_dxcc_info as get_r150_info
 from cty_lookup import get_dxcc_from_cty
@@ -110,6 +111,37 @@ class DataNormalizer:
         qsl_rcvd = qso_data.get('QSL_RCVD', '').upper()
         return 'Y' if qsl_rcvd == 'Y' else 'N'
 
+    def parse_lotw_rxqsl(self, rxqsl_str: str) -> Optional[datetime]:
+        """
+        Парсит поле APP_LOTW_RXQSL, удаляет комментарий и возвращает timezone-aware datetime.
+
+        Args:
+            rxqsl_str: Строка вида "2026-01-31 05:16:03 // QSL record matched/modified at LoTW"
+
+        Returns:
+            timezone-aware datetime объект или None если парсинг не удался
+        """
+        if not rxqsl_str:
+            self.logger.debug(f"🔍 parse_lotw_rxqsl: пустая строка APP_LOTW_RXQSL")
+            return None
+
+        try:
+            # Удаляем комментарий (часть после //)
+            date_part = rxqsl_str.split('//')[0].strip()
+            self.logger.debug(f"🔍 parse_lotw_rxqsl: исходная строка APP_LOTW_RXQSL='{rxqsl_str}'")
+            self.logger.debug(f"🔍 parse_lotw_rxqsl: извлеченная дата='{date_part}'")
+
+            # Парсим дату в формате "YYYY-MM-DD HH:MM:SS" и делаем timezone-aware (UTC)
+            naive_dt = datetime.strptime(date_part, '%Y-%m-%d %H:%M:%S')
+            # Делаем datetime timezone-aware (UTC)
+            from datetime import timezone
+            result = naive_dt.replace(tzinfo=timezone.utc)
+            self.logger.debug(f"🔍 parse_lotw_rxqsl: результат={result} (тип: {type(result)}, tzinfo: {result.tzinfo})")
+            return result
+        except (ValueError, IndexError) as e:
+            self.logger.error(f"❌ parse_lotw_rxqsl: ошибка парсинга APP_LOTW_RXQSL '{rxqsl_str}': {e}")
+            return None
+
     def normalize_cqz(self, cqz_str: str) -> Optional[int]:
         """
         Нормализует значение CQ зоны.
@@ -145,6 +177,10 @@ class DataNormalizer:
         callsign = qso_data.get('CALL', '').upper()
         my_callsign = my_callsign.upper()  # Сохраняем прописными
 
+        # Логируем APP_LOTW_RXQSL для отладки
+        app_rxqsl_raw = qso_data.get('APP_LOTW_RXQSL', '')
+        self.logger.debug(f"🔍 prepare_qso_data: {callsign} APP_LOTW_RXQSL='{app_rxqsl_raw}'")
+
         # Определяем страну и континент из r150cty.dat
         r150_info = get_r150_info(callsign) if callsign else None
         if r150_info:
@@ -177,6 +213,9 @@ class DataNormalizer:
             'r150s': r150s,
             'gridsquare': qso_data.get('GRIDSQUARE', ''),
             'my_gridsquare': qso_data.get('MY_GRIDSQUARE', ''),
+            'vucc_grids': qso_data.get('VUCC_GRIDS', ''),
+            'iota': qso_data.get('IOTA', ''),
+            'app_lotw_rxqsl': self.parse_lotw_rxqsl(qso_data.get('APP_LOTW_RXQSL', '')),
             'rst_sent': qso_data.get('RST_SENT', ''),
             'rst_rcvd': qso_data.get('RST_RCVD', ''),
             'ru_region': ru_region,
