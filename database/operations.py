@@ -268,10 +268,10 @@ class DatabaseOperations:
             }
 
         try:
-            self.logger.info(f"🔄 Обработка {len(qso_data_list)} QSO (user_id={user_id})")
+            self.logger.debug(f"🔄 Обработка {len(qso_data_list)} QSO (user_id={user_id})")
 
             # Проверяем структуру таблицы
-            self.logger.info("🔍 Проверяем структуру таблицы...")
+            self.logger.debug("🔍 Проверяем структуру таблицы...")
             if not self.check_table_structure():
                 return {
                     'success': False,
@@ -283,7 +283,7 @@ class DatabaseOperations:
             normalized_list = []
             skipped = 0
 
-            self.logger.info(f"🔍 Нормализация: начинаем обработку {len(qso_data_list)} сырых данных")
+            self.logger.debug(f"🔍 Нормализация: начинаем обработку {len(qso_data_list)} сырых данных")
 
             for i, qso_data in enumerate(qso_data_list):
                 self.logger.debug(f"🔍 Нормализация QSO #{i+1}: CALL={qso_data.get('CALL')}, BAND={qso_data.get('BAND')}")
@@ -379,18 +379,18 @@ class DatabaseOperations:
                 else:
                     new_qsos.append(q)
                     # Добавляем дополнительное логирование для отладки
-                    self.logger.info(f"✅ QSO #{i+1} {q['callsign']} {q['date']} {q['time']} {q['band']} {q['mode']} добавлено как НОВОЕ")
+                    self.logger.debug(f"✅ QSO #{i+1} {q['callsign']} {q['date']} {q['time']} {q['band']} {q['mode']} добавлено как НОВОЕ")
 
                     # Логируем детали для IC8TEM или первых нескольких QSO
                     if q['callsign'] == 'IC8TEM' or i < 3:
-                        self.logger.info(f"🔍 Детали нового QSO {q['callsign']}:")
-                        self.logger.info(f"   - callsign: {q['callsign']}")
-                        self.logger.info(f"   - my_callsign: {q['my_callsign']}")
-                        self.logger.info(f"   - date: {q['date']} (тип: {type(q['date'])})")
-                        self.logger.info(f"   - time: {q['time']} (тип: {type(q['time'])})")
-                        self.logger.info(f"   - band: {q['band']}")
-                        self.logger.info(f"   - mode: {q['mode']}")
-                        self.logger.info(f"   - app_lotw_rxqsl: {q.get('app_lotw_rxqsl')}")
+                        self.logger.debug(f"🔍 Детали нового QSO {q['callsign']}:")
+                        self.logger.debug(f"   - callsign: {q['callsign']}")
+                        self.logger.debug(f"   - my_callsign: {q['my_callsign']}")
+                        self.logger.debug(f"   - date: {q['date']} (тип: {type(q['date'])})")
+                        self.logger.debug(f"   - time: {q['time']} (тип: {type(q['time'])})")
+                        self.logger.debug(f"   - band: {q['band']}")
+                        self.logger.debug(f"   - mode: {q['mode']}")
+                        self.logger.debug(f"   - app_lotw_rxqsl: {q.get('app_lotw_rxqsl')}")
 
             self.logger.info(f"🔍 Итого: {len(new_qsos)} новых QSO, {len(update_qsos)} для обновления")
 
@@ -399,7 +399,7 @@ class DatabaseOperations:
 
             # Batch insert новых
             if new_qsos:
-                self.logger.info(f"🔍 Вызываем _batch_insert для {len(new_qsos)} новых QSO")
+                self.logger.debug(f"🔍 Вызываем _batch_insert для {len(new_qsos)} новых QSO")
 
                 # Создаем курсор для проверки дубликатов
                 with conn.cursor() as cur:
@@ -420,7 +420,7 @@ class DatabaseOperations:
 
             # Batch update существующих
             if update_qsos:
-                self.logger.info(f"🔍 Вызываем _batch_update для {len(update_qsos)} QSO для обновления")
+                self.logger.debug(f"🔍 Вызываем _batch_update для {len(update_qsos)} QSO для обновления")
                 updated = self._batch_update(update_qsos, existing_qsos, conn)
             else:
                 updated = 0
@@ -467,7 +467,7 @@ class DatabaseOperations:
                 """)
                 result = cur.fetchone()
                 if result:
-                    self.logger.info(f"✅ Колонка app_lotw_rxqsl существует: {result}")
+                    self.logger.debug(f"✅ Колонка app_lotw_rxqsl существует: {result}")
                     return True
                 else:
                     self.logger.error("❌ Колонка app_lotw_rxqsl НЕ существует в таблице tlog_qso!")
@@ -479,9 +479,9 @@ class DatabaseOperations:
                         ORDER BY column_name
                     """)
                     columns = cur.fetchall()
-                    self.logger.info("🔍 Существующие колонки в tlog_qso:")
+                    self.logger.debug("🔍 Существующие колонки в tlog_qso:")
                     for col in columns:
-                        self.logger.info(f"  - {col[0]} ({col[1]})")
+                        self.logger.debug(f"  - {col[0]} ({col[1]})")
                     return False
         except Exception as e:
             self.logger.error(f"❌ Ошибка проверки структуры таблицы: {e}")
@@ -608,7 +608,7 @@ class DatabaseOperations:
             return 0
 
         try:
-            self.logger.info(f"🔍 _batch_insert: начинаем вставку {len(normalized_list)} QSO для user_id={user_id}")
+            self.logger.debug(f"🔍 _batch_insert: начинаем вставку {len(normalized_list)} QSO для user_id={user_id}")
 
             # Логируем первые несколько QSO для отладки
             for i, q in enumerate(normalized_list[:3]):
@@ -627,7 +627,7 @@ class DatabaseOperations:
             # Создаем курсор для операций
             with conn.cursor() as cur:
                 # ДИАГНОСТИКА: Проверяем уникальные ограничения для первых QSO
-                self.logger.info("🔍 ДИАГНОСТИКА: проверяем уникальные ограничения...")
+                self.logger.debug("🔍 ДИАГНОСТИКА: проверяем уникальные ограничения...")
                 for i, q in enumerate(normalized_list[:3]):
                     # Проверяем существование точно такого же QSO
                     check_query = """
@@ -639,11 +639,11 @@ class DatabaseOperations:
                     existing = cur.fetchall()
 
                     if existing:
-                        self.logger.info(f"🔍 QSO #{i+1} {q['callsign']} {q['date']} {q['band']} {q['mode']}: НАЙДЕН в БД")
+                        self.logger.debug(f"🔍 QSO #{i+1} {q['callsign']} {q['date']} {q['band']} {q['mode']}: НАЙДЕН в БД")
                         for ex in existing:
-                            self.logger.info(f"   Существующий: {ex}")
+                            self.logger.debug(f"   Существующий: {ex}")
                     else:
-                        self.logger.info(f"🔍 QSO #{i+1} {q['callsign']} {q['date']} {q['band']} {q['mode']}: НЕ НАЙДЕН в БД - будет добавлен")
+                        self.logger.debug(f"🔍 QSO #{i+1} {q['callsign']} {q['date']} {q['band']} {q['mode']}: НЕ НАЙДЕН в БД - будет добавлен")
 
                 values = []
                 params = []
@@ -750,7 +750,7 @@ class DatabaseOperations:
 
                     # Попробуем выполнить одну вставку отдельно для диагностики
                     if len(normalized_list) > 0:
-                        self.logger.info("🔍 Пробуем вставить один QSO отдельно для диагностики...")
+                        self.logger.debug("🔍 Пробуем вставить один QSO отдельно для диагностики...")
                         test_q = normalized_list[0]
                         test_record_id = str(uuid.uuid4())
                         test_params = [
@@ -778,26 +778,26 @@ class DatabaseOperations:
                         """
 
                         # Логируем параметры тестового запроса
-                        self.logger.info("🔍 Параметры тестовой вставки:")
+                        self.logger.debug("🔍 Параметры тестовой вставки:")
                         for i, param in enumerate(test_params):
-                            self.logger.info(f"   [{i}]: {param} (тип: {type(param).__name__})")
+                            self.logger.debug(f"   [{i}]: {param} (тип: {type(param).__name__})")
 
                         try:
                             cur.execute(test_query, test_params)
                             test_result = cur.fetchall()
-                            self.logger.info(f"🔍 Тестовая вставка: {len(test_result)} записи добавлено")
+                            self.logger.debug(f"🔍 Тестовая вставка: {len(test_result)} записи добавлено")
                         except Exception as test_error:
                             self.logger.error(f"❌ Ошибка тестовой вставки: {test_error}")
                             self.logger.error(f"❌ Тип ошибки: {type(test_error)}")
                             # Попробуем вставить по одному параметру для диагностики
                             try:
-                                self.logger.info("🔍 Пробуем простую вставку без app_lotw_rxqsl...")
+                                self.logger.debug("🔍 Пробуем простую вставку без app_lotw_rxqsl...")
                                 simple_params = test_params[:17] + [None] + test_params[18:]  # Заменяем app_lotw_rxqsl на None
                                 simple_query = test_query.replace("%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
                                                                   "%s, %s, %s, %s, %s, %s, %s::date, %s::time, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s")
                                 cur.execute(simple_query, simple_params)
                                 simple_result = cur.fetchall()
-                                self.logger.info(f"✅ Простая вставка успешна: {len(simple_result)} записи добавлено")
+                                self.logger.debug(f"✅ Простая вставка успешна: {len(simple_result)} записи добавлено")
                             except Exception as simple_error:
                                 self.logger.error(f"❌ Ошибка простой вставки: {simple_error}")
 
@@ -951,12 +951,12 @@ class DatabaseOperations:
 
                 # Проверяем тип данных и логируем дополнительную информацию
                 if isinstance(created_at, str):
-                    self.logger.info(f"🔍 String datetime value: '{created_at}'")
+                    self.logger.debug(f"🔍 String datetime value: '{created_at}'")
                 elif isinstance(created_at, datetime):
-                    self.logger.info(f"🔍 Datetime object: {created_at}")
-                    self.logger.info(f"🔍 Datetime isoformat(): {created_at.isoformat()}")
-                    self.logger.info(f"🔍 Datetime timezone: {created_at.tzinfo}")
-                    self.logger.info(f"🔍 Datetime is timezone-aware: {created_at.tzinfo is not None}")
+                    self.logger.debug(f"🔍 Datetime object: {created_at}")
+                    self.logger.debug(f"🔍 Datetime isoformat(): {created_at.isoformat()}")
+                    self.logger.debug(f"🔍 Datetime timezone: {created_at.tzinfo}")
+                    self.logger.debug(f"🔍 Datetime is timezone-aware: {created_at.tzinfo is not None}")
                 else:
                     self.logger.warning(f"🔍 Unexpected type: {type(created_at)}")
 

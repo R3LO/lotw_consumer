@@ -57,7 +57,7 @@ class LoTWAPI:
 
             if response.status_code == 200:
                 content = response.text
-                self.logger.info(f"Получен ответ от LoTW, длина: {len(content)} символов")
+                self.logger.debug(f"Получен ответ от LoTW, длина: {len(content)} символов")
 
                 qso_data = self.parser.parse_adif_response_all_fields(content)
 

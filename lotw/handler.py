@@ -71,22 +71,22 @@ class MessageHandler:
 
             # ДИАГНОСТИКА: проверяем что пришло от API
             qso_data_from_api = lotw_result.get('qso_data', [])
-            self.logger.info(f"🔍 Обработчик: от API получено {len(qso_data_from_api)} QSO")
+            self.logger.debug(f"🔍 Обработчик: от API получено {len(qso_data_from_api)} QSO")
 
             # Показываем первые несколько QSO для диагностики
             for i, qso in enumerate(qso_data_from_api[:5]):
-                self.logger.info(f"🔍 Обработчик QSO #{i+1}: CALL={qso.get('CALL')}, BAND={qso.get('BAND')}, MODE={qso.get('MODE')}")
-                self.logger.info(f"🔍 Обработчик QSO #{i+1}: QSO_DATE={qso.get('QSO_DATE')}, TIME_ON={qso.get('TIME_ON')}")
+                self.logger.debug(f"🔍 Обработчик QSO #{i+1}: CALL={qso.get('CALL')}, BAND={qso.get('BAND')}, MODE={qso.get('MODE')}")
+                self.logger.debug(f"🔍 Обработчик QSO #{i+1}: QSO_DATE={qso.get('QSO_DATE')}, TIME_ON={qso.get('TIME_ON')}")
 
                 # Проверяем APP_LOTW_RXQSL
                 app_rxqsl = qso.get('APP_LOTW_RXQSL')
                 if app_rxqsl:
-                    self.logger.info(f"🔍 Обработчик QSO #{i+1}: APP_LOTW_RXQSL={app_rxqsl}")
+                    self.logger.debug(f"🔍 Обработчик QSO #{i+1}: APP_LOTW_RXQSL={app_rxqsl}")
                 else:
-                    self.logger.info(f"🔍 Обработчик QSO #{i+1}: APP_LOTW_RXQSL=ОТСУТСТВУЕТ")
+                    self.logger.debug(f"🔍 Обработчик QSO #{i+1}: APP_LOTW_RXQSL=ОТСУТСТВУЕТ")
 
             if len(qso_data_from_api) > 5:
-                self.logger.info(f"🔍 ... и еще {len(qso_data_from_api) - 5} QSO")
+                self.logger.debug(f"🔍 ... и еще {len(qso_data_from_api) - 5} QSO")
 
             # Обрабатываем данные
             result = self.db_ops.process_qso_batch(
@@ -112,7 +112,7 @@ class MessageHandler:
                         # Конвертируем в naive datetime для консистентности
                         if lotw_datetime.tzinfo is not None:
                             lotw_datetime = lotw_datetime.replace(tzinfo=None)
-                        self.logger.info(f"🔍 Parsed ISO datetime: {lotw_datetime}")
+                        self.logger.debug(f"🔍 Parsed ISO datetime: {lotw_datetime}")
                     else:
                         # Попытка парсинга строки в различных форматах
                         lotw_datetime = None
@@ -120,27 +120,27 @@ class MessageHandler:
                         # Пробуем формат YYYY-MM-DD HH:MM:SS
                         try:
                             lotw_datetime = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
-                            self.logger.info(f"🔍 Parsed string datetime (full): {lotw_datetime}")
+                            self.logger.debug(f"🔍 Parsed string datetime (full): {lotw_datetime}")
                         except ValueError:
                             # Пробуем формат YYYY-MM-DD (только дата)
                             try:
                                 lotw_datetime = datetime.strptime(created_at_str, '%Y-%m-%d')
                                 # Добавляем время 00:00:00 для консистентности
                                 lotw_datetime = lotw_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
-                                self.logger.info(f"🔍 Parsed string datetime (date only): {lotw_datetime}")
+                                self.logger.debug(f"🔍 Parsed string datetime (date only): {lotw_datetime}")
                             except ValueError:
                                 # Если не получается, используем текущее время
                                 lotw_datetime = datetime.now(timezone.utc)
                                 self.logger.warning(f"⚠️ Failed to parse datetime string '{created_at_str}', using current time: {lotw_datetime}")
                 else:
                     lotw_datetime = datetime.now(timezone.utc)
-                    self.logger.info(f"🔍 Using current datetime: {lotw_datetime}")
+                    self.logger.debug(f"🔍 Using current datetime: {lotw_datetime}")
 
-                self.logger.info(f"🔍 Calling update_lotw_lastsync with: {lotw_datetime} (type: {type(lotw_datetime)})")
+                self.logger.debug(f"🔍 Calling update_lotw_lastsync with: {lotw_datetime} (type: {type(lotw_datetime)})")
                 self.db_ops.update_lotw_lastsync(user_id, lotw_datetime)
 
-                self.logger.info(f"Задача {task_id} успешно обработана")
-                self.logger.info(f"   QSO: добавлено {result.get('qso_added', 0)}, обновлено {result.get('qso_updated', 0)}")
+                self.logger.debug(f"Задача {task_id} успешно обработана")
+                self.logger.debug(f"   QSO: добавлено {result.get('qso_added', 0)}, обновлено {result.get('qso_updated', 0)}")
             else:
                 self.stats.increment_failed()
                 self.logger.error(f"Задача {task_id} завершилась с ошибкой")

@@ -19,7 +19,7 @@ class ADIFParser:
         qso_list = []
 
         if '<eor>' not in content and 'QSO_DATE' not in content:
-            self.logger.info("ℹ️ В ответе нет данных QSO")
+            self.logger.debug("ℹ️ В ответе нет данных QSO")
             return qso_list
 
         # Удаляем <APP_LoTW_EOF> и всё после него перед разбором
@@ -32,7 +32,7 @@ class ADIFParser:
 
         qso_blocks = content.split('<eor>')
 
-        self.logger.info(f"🔍 Парсер: найдено {len(qso_blocks)} блоков после разделения по <eor>")
+        self.logger.debug(f"🔍 Парсер: найдено {len(qso_blocks)} блоков после разделения по <eor>")
 
         for block_num, block in enumerate(qso_blocks, 1):
             self.logger.debug(f"🔍 Блок #{block_num}: {len(block)} символов")
@@ -73,7 +73,7 @@ class ADIFParser:
                 self.logger.debug(f"🔍 Блок #{block_num}: поля {', '.join(fields_found[:10])}...")
 
             if qso and 'CALL' in qso:
-                self.logger.info(f"✅ Блок #{block_num}: добавлен QSO {qso['CALL']}")
+                self.logger.debug(f"✅ Блок #{block_num}: добавлен QSO {qso['CALL']}")
                 qso_list.append(qso)
             else:
                 self.logger.debug(f"🔍 Блок #{block_num}: пропущен (нет CALL или пустой)")
