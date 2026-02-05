@@ -7,7 +7,6 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from r150s_lookup import get_dxcc_info as get_r150_info
-from cty_lookup import get_dxcc_from_cty
 
 
 class DataNormalizer:
@@ -191,10 +190,9 @@ class DataNormalizer:
             r150s = None
             continent = None
 
-        # Определяем DXCC из поля COUNTRY в LoTW API (если есть), иначе из cty.dat
-        dxcc = qso_data.get('COUNTRY', '').upper().strip()
-        if not dxcc and callsign:
-            dxcc = get_dxcc_from_cty(callsign) if callsign else None
+        # Определяем DXCC только из поля COUNTRY в LoTW API
+        # Если данных нет или они NONE, то ничего не вставляется в dxcc
+        dxcc = qso_data.get('COUNTRY', '').upper().strip() if qso_data.get('COUNTRY') else None
 
         # Определяем state из STATE для любых станций
         # state заполняется всегда, если есть значение STATE

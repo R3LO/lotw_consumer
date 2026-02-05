@@ -910,10 +910,10 @@ class DatabaseOperations:
                                         new_q.get('sat_name', '')
                                     ])
 
-                                    # Обновляем dxcc из поля COUNTRY LoTW API (если есть), иначе NULL
-                                    dxcc = new_q.get('dxcc', '')
+                                    # Обновляем dxcc только из данных LoTW API (если есть), иначе NULL
+                                    dxcc = new_q.get('dxcc')
                                     updates.append("dxcc = %s")
-                                    values.append(dxcc if dxcc else None)
+                                    values.append(dxcc)
 
                                     # Обновляем r150s из r150cty.dat
                                     r150_info = self._get_r150_info(new_q['callsign'])
