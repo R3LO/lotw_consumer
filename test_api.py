@@ -42,6 +42,7 @@ def lotw_request(
         'qso_query': '1',
         'qso_qsl': 'yes',
         'qso_qsldetail': 'yes',
+        'qso_mydetail': 'yes',
         'qso_withown': 'yes',
         'qso_owncall': callsign
     }

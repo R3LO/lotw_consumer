@@ -30,7 +30,7 @@ class QSO:
     app_lotw_rxqsl: Optional[datetime] = None
     rst_sent: str = ''
     rst_rcvd: str = ''
-    ru_region: Optional[str] = None
+    state: Optional[str] = None
     cqz: Optional[int] = None
     ituz: Optional[int] = None
     user_id: Optional[int] = None
@@ -68,7 +68,7 @@ class QSO:
             'app_lotw_rxqsl': self.app_lotw_rxqsl,
             'rst_sent': self.rst_sent,
             'rst_rcvd': self.rst_rcvd,
-            'ru_region': self.ru_region,
+            'state': self.state,
             'cqz': self.cqz,
             'ituz': self.ituz,
             'user_id': self.user_id,

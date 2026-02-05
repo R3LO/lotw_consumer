@@ -95,13 +95,14 @@ class DataNormalizer:
         """
         Получает режим из данных QSO.
         Если MODE = 'MFSK', использует SUBMODE.
+        Ограничивает длину до 10 символов для совместимости с БД.
         """
         mode = qso_data.get('MODE', '').upper()
         if mode == 'MFSK':
             submode = qso_data.get('SUBMODE', '')
             if submode:
-                return submode.upper()
-        return mode
+                return submode.upper()[:10]  # Ограничиваем до 10 символов
+        return mode[:10]  # Ограничиваем до 10 символов
 
     def get_lotw_status(self, qso_data: Dict[str, str]) -> str:
         """
@@ -190,16 +191,17 @@ class DataNormalizer:
             r150s = None
             continent = None
 
-        # Определяем DXCC префикс из cty.dat
-        dxcc = get_dxcc_from_cty(callsign) if callsign else None
+        # Определяем DXCC из поля COUNTRY в LoTW API (если есть), иначе из cty.dat
+        dxcc = qso_data.get('COUNTRY', '').upper().strip()
+        if not dxcc and callsign:
+            dxcc = get_dxcc_from_cty(callsign) if callsign else None
 
-        # Определяем ru_region из STATE для российских станций
-        # dxcc из cty.dat для России: UA, UA2, UA9
-        ru_region = None
-        if dxcc in ('UA', 'UA2', 'UA9'):
-            state = qso_data.get('STATE', '').upper()
-            if state:
-                ru_region = state
+        # Определяем state из STATE для любых станций
+        # state заполняется всегда, если есть значение STATE
+        state = None
+        state_value = qso_data.get('STATE', '').upper()
+        if state_value:
+            state = state_value
 
         return {
             'band': self.normalize_band(qso_data.get('BAND', '')),
@@ -218,7 +220,7 @@ class DataNormalizer:
             'app_lotw_rxqsl': self.parse_lotw_rxqsl(qso_data.get('APP_LOTW_RXQSL', '')),
             'rst_sent': qso_data.get('RST_SENT', ''),
             'rst_rcvd': qso_data.get('RST_RCVD', ''),
-            'ru_region': ru_region,
+            'state': state,
             'cqz': self.normalize_cqz(qso_data.get('CQZ', '')),
             'ituz': self.normalize_ituz(qso_data.get('ITUZ', '')),
             'continent': continent,

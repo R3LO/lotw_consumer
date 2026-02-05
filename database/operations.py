@@ -160,7 +160,7 @@ class DatabaseOperations:
                         id, callsign, my_callsign, band, frequency, mode,
                         date, time, prop_mode, sat_name, lotw, paper_qsl, r150s,
                         gridsquare, my_gridsquare, vucc_grids, iota, app_lotw_rxqsl, rst_sent, rst_rcvd,
-                        ru_region, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
+                        state, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
                         created_at, updated_at
                     ) VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                               %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
@@ -177,7 +177,7 @@ class DatabaseOperations:
                     normalized_data['vucc_grids'], normalized_data['iota'],
                     normalized_data['app_lotw_rxqsl'],
                     normalized_data['rst_sent'], normalized_data['rst_rcvd'],
-                    normalized_data['ru_region'], normalized_data['cqz'], normalized_data['ituz'],
+                    normalized_data['state'], normalized_data['cqz'], normalized_data['ituz'],
                     user_id, normalized_data['continent'], normalized_data['dxcc'], None
                 ]
 
@@ -225,7 +225,7 @@ class DatabaseOperations:
                         app_lotw_rxqsl = %s,
                         rst_sent = %s,
                         rst_rcvd = %s,
-                        ru_region = %s,
+                        state = %s,
                         cqz = %s,
                         ituz = %s,
                         continent = %s,
@@ -240,7 +240,7 @@ class DatabaseOperations:
                     normalized_data['r150s'], normalized_data['gridsquare'], normalized_data['my_gridsquare'],
                     normalized_data['vucc_grids'], normalized_data['iota'],
                     normalized_data['app_lotw_rxqsl'],
-                    normalized_data['rst_sent'], normalized_data['rst_rcvd'], normalized_data['ru_region'],
+                    normalized_data['rst_sent'], normalized_data['rst_rcvd'], normalized_data['state'],
                     normalized_data['cqz'], normalized_data['ituz'], normalized_data['continent'],
                     normalized_data['dxcc'], qso_id
                 ]
@@ -674,7 +674,7 @@ class DatabaseOperations:
                     # Подсчитываем количество полей в VALUES
                     # id, callsign, my_callsign, band, frequency, mode, date, time, prop_mode, sat_name,
                     # lotw, paper_qsl, r150s, gridsquare, my_gridsquare, vucc_grids, iota, app_lotw_rxqsl,
-                    # rst_sent, rst_rcvd, ru_region, cqz, ituz, user_id, continent, dxcc, adif_upload_id
+                    # rst_sent, rst_rcvd, state, cqz, ituz, user_id, continent, dxcc, adif_upload_id
                     # = 27 полей (created_at и updated_at будут NOW() в SQL)
                     values.append("(%s::uuid, %s, %s, %s, %s, %s, %s::date, %s::time, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())")
 
@@ -700,7 +700,7 @@ class DatabaseOperations:
                         app_lotw_rxqsl_value,               # 18. app_lotw_rxqsl
                         q['rst_sent'],                      # 19. rst_sent
                         q['rst_rcvd'],                      # 20. rst_rcvd
-                        q['ru_region'],                     # 21. ru_region
+                        q['state'],                         # 21. state
                         q['cqz'],                           # 22. cqz
                         q['ituz'],                          # 23. ituz
                         user_id,                            # 24. user_id
@@ -716,7 +716,7 @@ class DatabaseOperations:
                         id, callsign, my_callsign, band, frequency, mode,
                         date, time, prop_mode, sat_name, lotw, paper_qsl, r150s,
                         gridsquare, my_gridsquare, vucc_grids, iota, app_lotw_rxqsl, rst_sent, rst_rcvd,
-                        ru_region, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
+                        state, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
                         created_at, updated_at
                     ) VALUES {values_str}
                     ON CONFLICT ON CONSTRAINT unique_qso DO NOTHING
@@ -728,10 +728,26 @@ class DatabaseOperations:
                 self.logger.debug(f"🔍 Параметры типы: {[type(p).__name__ for p in params[:10]]}")  # Показываем типы первых 10 параметров
 
                 try:
-                    # Проверяем и логируем проблемные параметры
-                    for i, param in enumerate(params[:5]):
-                        if isinstance(param, datetime):
-                            self.logger.debug(f"🔍 Параметр {i}: datetime = {param}, iso = {param.isoformat()}")
+                    # Детальная диагностика проблемного поля
+                    self.logger.debug("🔍 ДЕТАЛЬНАЯ ДИАГНОСТИКА ПАРАМЕТРОВ:")
+                    field_names = [
+                        'id', 'callsign', 'my_callsign', 'band', 'frequency', 'mode',
+                        'date', 'time', 'prop_mode', 'sat_name', 'lotw', 'paper_qsl', 'r150s',
+                        'gridsquare', 'my_gridsquare', 'vucc_grids', 'iota', 'app_lotw_rxqsl',
+                        'rst_sent', 'rst_rcvd', 'state', 'cqz', 'ituz', 'user_id',
+                        'continent', 'dxcc', 'adif_upload_id'
+                    ]
+
+                    for i, param in enumerate(params):
+                        field_name = field_names[i] if i < len(field_names) else f"field_{i}"
+                        param_str = str(param) if param is not None else "NULL"
+                        param_length = len(param_str)
+                        self.logger.debug(f"   [{i:2d}] {field_name:15s}: '{param_str}' (длина: {param_length}, тип: {type(param).__name__})")
+
+                        # Проверяем потенциально проблемные поля
+                        if field_name in ['mode', 'band', 'callsign', 'my_callsign', 'gridsquare', 'my_gridsquare', 'sat_name', 'prop_mode']:
+                            if param_length > 10:
+                                self.logger.error(f"❌ ПРОБЛЕМНОЕ ПОЛЕ: {field_name} = '{param}' (длина {param_length} > 10)")
 
                     cur.execute(query, params)
                     inserted_rows = cur.fetchall()
@@ -761,7 +777,7 @@ class DatabaseOperations:
                             test_q['gridsquare'], test_q['my_gridsquare'], test_q['vucc_grids'], test_q['iota'],
                             test_q['app_lotw_rxqsl'],
                             test_q['rst_sent'], test_q['rst_rcvd'],
-                            test_q['ru_region'], test_q['cqz'], test_q['ituz'], user_id,
+                            test_q['state'], test_q['cqz'], test_q['ituz'], user_id,
                             test_q['continent'], test_q['dxcc'], None
                         ]
 
@@ -770,17 +786,33 @@ class DatabaseOperations:
                                 id, callsign, my_callsign, band, frequency, mode,
                                 date, time, prop_mode, sat_name, lotw, paper_qsl, r150s,
                                 gridsquare, my_gridsquare, vucc_grids, iota, app_lotw_rxqsl, rst_sent, rst_rcvd,
-                                ru_region, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
+                                state, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
                                 created_at, updated_at
                             ) VALUES (%s::uuid, %s, %s, %s, %s, %s, %s::date, %s::time, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                             ON CONFLICT ON CONSTRAINT unique_qso DO NOTHING
                             RETURNING 1
                         """
 
-                        # Логируем параметры тестового запроса
-                        self.logger.debug("🔍 Параметры тестовой вставки:")
+                        # Детальная диагностика тестового запроса
+                        self.logger.debug("🔍 ДЕТАЛЬНАЯ ДИАГНОСТИКА ТЕСТОВОЙ ВСТАВКИ:")
+                        test_field_names = [
+                            'id', 'callsign', 'my_callsign', 'band', 'frequency', 'mode',
+                            'date', 'time', 'prop_mode', 'sat_name', 'lotw', 'paper_qsl', 'r150s',
+                            'gridsquare', 'my_gridsquare', 'vucc_grids', 'iota', 'app_lotw_rxqsl',
+                            'rst_sent', 'rst_rcvd', 'state', 'cqz', 'ituz', 'user_id',
+                            'continent', 'dxcc', 'adif_upload_id'
+                        ]
+
                         for i, param in enumerate(test_params):
-                            self.logger.debug(f"   [{i}]: {param} (тип: {type(param).__name__})")
+                            field_name = test_field_names[i] if i < len(test_field_names) else f"field_{i}"
+                            param_str = str(param) if param is not None else "NULL"
+                            param_length = len(param_str)
+                            self.logger.debug(f"   [{i:2d}] {field_name:15s}: '{param_str}' (длина: {param_length}, тип: {type(param).__name__})")
+
+                            # Проверяем потенциально проблемные поля
+                            if field_name in ['mode', 'band', 'callsign', 'my_callsign', 'gridsquare', 'my_gridsquare', 'sat_name', 'prop_mode']:
+                                if param_length > 10:
+                                    self.logger.error(f"❌ ПРОБЛЕМНОЕ ПОЛЕ: {field_name} = '{param}' (длина {param_length} > 10)")
 
                         try:
                             cur.execute(test_query, test_params)
@@ -858,8 +890,6 @@ class DatabaseOperations:
                                         "vucc_grids = %s",
                                         "iota = %s",
                                         "app_lotw_rxqsl = %s",
-                                        "rst_sent = %s",
-                                        "rst_rcvd = %s",
                                         "cqz = %s",
                                         "ituz = %s",
                                         "prop_mode = %s",
@@ -874,19 +904,16 @@ class DatabaseOperations:
                                         new_q.get('vucc_grids', ''),
                                         new_q.get('iota', ''),
                                         app_rxqsl_value,
-                                        new_q.get('rst_sent', ''),
-                                        new_q.get('rst_rcvd', ''),
                                         new_q.get('cqz'),
                                         new_q.get('ituz'),
                                         new_q.get('prop_mode', ''),
                                         new_q.get('sat_name', '')
                                     ])
 
-                                    # Обновляем dxcc из cty.dat
-                                    dxcc = self._get_dxcc_from_cty(new_q['callsign'])
-                                    if dxcc:
-                                        updates.append("dxcc = %s")
-                                        values.append(dxcc)
+                                    # Обновляем dxcc из поля COUNTRY LoTW API (если есть), иначе NULL
+                                    dxcc = new_q.get('dxcc', '')
+                                    updates.append("dxcc = %s")
+                                    values.append(dxcc if dxcc else None)
 
                                     # Обновляем r150s из r150cty.dat
                                     r150_info = self._get_r150_info(new_q['callsign'])
@@ -895,9 +922,9 @@ class DatabaseOperations:
                                         values.append(r150_info['country'].upper())
 
                                     # Дополнительные поля
-                                    if new_q.get('ru_region'):
-                                        updates.append("ru_region = %s")
-                                        values.append(new_q['ru_region'])
+                                    # state обновляется всегда (включая NULL)
+                                    updates.append("state = %s")
+                                    values.append(new_q.get('state'))
                                     if new_q.get('continent'):
                                         updates.append("continent = %s")
                                         values.append(new_q['continent'])

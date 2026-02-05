@@ -212,11 +212,11 @@ class DataNormalizer:
 
         dxcc = self._get_dxcc_from_cty(callsign) if callsign else None
 
-        ru_region = None
+        state = None
         if dxcc in ('UA', 'UA2', 'UA9'):
-            state = qso_data.get('STATE', '').upper()
-            if state:
-                ru_region = state
+            state_value = qso_data.get('STATE', '').upper()
+            if state_value:
+                state = state_value
 
         return {
             'band': self.normalize_band(qso_data.get('BAND', '')),
@@ -232,7 +232,7 @@ class DataNormalizer:
             'my_gridsquare': qso_data.get('MY_GRIDSQUARE', ''),
             'rst_sent': qso_data.get('RST_SENT', ''),
             'rst_rcvd': qso_data.get('RST_RCVD', ''),
-            'ru_region': ru_region,
+            'state': state,
             'cqz': self.normalize_cqz(qso_data.get('CQZ', '')),
             'ituz': self.normalize_ituz(qso_data.get('ITUZ', '')),
             'continent': continent,
@@ -395,7 +395,7 @@ class DatabaseOperations:
                         id, callsign, my_callsign, band, frequency, mode,
                         date, time, prop_mode, sat_name, lotw, paper_qsl, r150s,
                         gridsquare, my_gridsquare, rst_sent, rst_rcvd,
-                        ru_region, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
+                        state, cqz, ituz, user_id, continent, dxcc, adif_upload_id,
                         created_at, updated_at
                     ) VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                               %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
@@ -410,7 +410,7 @@ class DatabaseOperations:
                     normalized_data['lotw'], 'N', normalized_data['r150s'],
                     normalized_data['gridsquare'], normalized_data['my_gridsquare'],
                     normalized_data['rst_sent'], normalized_data['rst_rcvd'],
-                    normalized_data['ru_region'], normalized_data['cqz'], normalized_data['ituz'],
+                    normalized_data['state'], normalized_data['cqz'], normalized_data['ituz'],
                     user_id, normalized_data['continent'], normalized_data['dxcc'], None
                 ]
 
@@ -457,7 +457,7 @@ class DatabaseOperations:
                         my_gridsquare = %s,
                         rst_sent = %s,
                         rst_rcvd = %s,
-                        ru_region = %s,
+                        state = %s,
                         cqz = %s,
                         ituz = %s,
                         continent = %s,
@@ -470,7 +470,7 @@ class DatabaseOperations:
                     normalized_data['band'], normalized_data['frequency'], normalized_data['mode'],
                     normalized_data['prop_mode'], normalized_data['sat_name'], normalized_data['lotw'],
                     normalized_data['r150s'], normalized_data['gridsquare'], normalized_data['my_gridsquare'],
-                    normalized_data['rst_sent'], normalized_data['rst_rcvd'], normalized_data['ru_region'],
+                    normalized_data['rst_sent'], normalized_data['rst_rcvd'], normalized_data['state'],
                     normalized_data['cqz'], normalized_data['ituz'], normalized_data['continent'],
                     normalized_data['dxcc'], qso_id
                 ]
