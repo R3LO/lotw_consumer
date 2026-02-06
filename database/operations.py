@@ -990,7 +990,7 @@ class DatabaseOperations:
                 cur.execute("""
                     UPDATE tlog_radioprofile
                     SET lotw_lastsync = %s
-                    WHERE id = %s
+                    WHERE user_id = %s
                 """, (created_at, user_id))
 
                 conn.commit()
