@@ -185,7 +185,7 @@ class LoTWProducer:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT
-                        id,
+                        user_id,             -- Изменено: теперь выбираем user_id
                         callsign,
                         my_callsigns,
                         lotw_user,
@@ -204,7 +204,7 @@ class LoTWProducer:
                 total_rows = len(rows)
 
                 for row in rows:
-                    user_id, callsign_data, my_callsigns, lotw_user, lotw_password, lotw_lastsync = row
+                    actual_user_id, callsign_data, my_callsigns, lotw_user, lotw_password, lotw_lastsync = row
 
                     # Обрабатываем основной позывной
                     if callsign_data:
@@ -263,7 +263,7 @@ class LoTWProducer:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT
-                        id,
+                        user_id,             -- Изменено: теперь выбираем user_id
                         callsign,
                         my_callsigns,
                         lotw_user,
@@ -282,13 +282,13 @@ class LoTWProducer:
                 total_rows = len(rows)
 
                 for row in rows:
-                    user_id, callsign_data, my_callsigns, lotw_user, lotw_password, lotw_lastsync = row
+                    actual_user_id, callsign_data, my_callsigns, lotw_user, lotw_password, lotw_lastsync = row
 
                     # Создаем словарь с учетными данными
                     credentials = {
                         "lotw_user": lotw_user,
                         "lotw_password": lotw_password,
-                        "user_id": user_id,
+                        "user_id": actual_user_id, # Теперь здесь правильный user_id
                         "lotw_lastsync": lotw_lastsync
                     }
 
@@ -813,7 +813,7 @@ def main():
   %(prog)s --status               # Проверить статус очереди
   %(prog)s --recreate             # Пересоздать очередь (при ошибке параметров)
   %(prog)s --test-db              # Тестировать подключение к БД
-  %(prog)s --test                 # Тестовый режим (только подключение)
+  %(prog)s --test                 # Тестовый режим (только проверка подключения)
         """
     )
 
