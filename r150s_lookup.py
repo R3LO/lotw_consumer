@@ -185,11 +185,13 @@ class DXCCDatabase:
                 self._add_to_prefix_map(clean_prefix, entry)
 
     def _add_to_prefix_map(self, prefix: str, entry: DXCCEntry):
-        """Добавляет префикс в карту, если его еще нет"""
+        """Добавляет префикс в карту, перезаписывая существующий"""
         # Удаляем начальный = если есть
         clean_prefix = prefix.lstrip('=')
 
-        if clean_prefix and clean_prefix not in self.prefix_map:
+        # Перезаписываем префикс, чтобы более поздние/специфичные записи имели приоритет
+        # (например, Kaliningrad должен перезаписать European Russia для RA2)
+        if clean_prefix:
             self.prefix_map[clean_prefix] = entry
 
     def _parse_exceptions(self, prefix_line: str, entry: DXCCEntry):
