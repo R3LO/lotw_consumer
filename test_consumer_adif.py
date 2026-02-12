@@ -49,19 +49,33 @@ class ADIFParser:
 
             block = re.sub(r'//.*', '', block)
 
-            pattern = r'<(\w+)(?::(\d+))?>([^<]*)'
+            # Паттерн для тегов с указанной длиной: захватываем ровно length символов
+            pattern_with_length = r'<(\w+):(\d+)>(.{0,\2})'
+            # Паттерн для тегов без длины: захватываем всё до следующего <
+            pattern_without_length = r'<(\w+)>([^<]*)'
+
             qso = {}
             fields_found = []
 
-            matches = re.findall(pattern, block)
+            # Сначала обрабатываем теги с длиной
+            matches_with_length = re.findall(pattern_with_length, block)
+            # Затем теги без длины
+            matches_without_length = re.findall(pattern_without_length, block)
 
-            for field_name, length, value in matches:
-                field_name = field_name.upper()
+            matches = matches_with_length + matches_without_length
 
-                if length and length.isdigit():
-                    value = value[:int(length)].strip()
-                else:
+            for match in matches:
+                # Для тегов с длиной: (field_name, length, value)
+                # Для тегов без длины: (field_name, value)
+                if len(match) == 3:
+                    field_name, length, value = match
+                    # Значение уже обрезано до нужной длины регулярным выражением
                     value = value.strip()
+                else:
+                    field_name, value = match
+                    value = value.strip()
+
+                field_name = field_name.upper()
 
                 if value:
                     qso[field_name] = value

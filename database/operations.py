@@ -49,12 +49,21 @@ class DatabaseOperations:
         finally:
             conn.close()
 
-    def find_existing_qso(self, qso_data: Dict[str, str], user_id: int) -> Optional[Dict[str, Any]]:
+    def find_existing_qso(self, qso_data: Dict[str, str], user_id: int, my_callsign: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Ищет существующую QSO в базе данных.
+
+        Args:
+            qso_data: Данные QSO из LoTW API
+            user_id: ID пользователя
+            my_callsign: Позывной оператора из задачи. Если не указан, берётся из STATION_CALLSIGN в qso_data
         """
         callsign = qso_data.get('CALL', '').upper()
-        my_callsign = qso_data.get('STATION_CALLSIGN', '')
+
+        # Если my_callsign не передан или пуст, берём STATION_CALLSIGN из данных QSO
+        if not my_callsign or my_callsign == 'unknown':
+            my_callsign = qso_data.get('STATION_CALLSIGN', '').strip()
+
         date_str = self.normalizer.normalize_date(qso_data.get('QSO_DATE', ''))
         time_str = self.normalizer.normalize_time(qso_data.get('TIME_ON', ''))
         band = self.normalizer.normalize_band(qso_data.get('BAND', ''))
@@ -258,8 +267,16 @@ class DatabaseOperations:
         finally:
             conn.close()
 
-    def process_qso_batch(self, qso_data_list: List[Dict[str, str]], my_callsign: str, user_id: int) -> Dict[str, Any]:
-        """Обрабатывает пакет QSO с batch-запросами"""
+    def process_qso_batch(self, qso_data_list: List[Dict[str, str]], my_callsign: Optional[str], user_id: int) -> Dict[str, Any]:
+        """
+        Обрабатывает пакет QSO с batch-запросами.
+
+        Args:
+            qso_data_list: Список данных QSO из LoTW API
+            my_callsign: Позывной оператора из задачи. Если не указан или 'unknown',
+                         для каждого QSO используется свой STATION_CALLSIGN
+            user_id: ID пользователя
+        """
         conn = self.db_conn.get_connection()
         if not conn:
             return {
@@ -297,9 +314,21 @@ class DatabaseOperations:
                     skipped += 1
                     continue
 
+                # Определяем my_callsign для конкретного QSO
+                qso_my_callsign = my_callsign
+                if not my_callsign or my_callsign == 'unknown':
+                    # Если my_callsign не передан, берём STATION_CALLSIGN из данных QSO
+                    qso_my_callsign = qso_data.get('STATION_CALLSIGN', '').strip()
+                    if qso_my_callsign:
+                        self.logger.debug(f"🔍 QSO #{i+1}: используем STATION_CALLSIGN={qso_my_callsign}")
+                    else:
+                        self.logger.warning(f"🔍 QSO #{i+1}: STATION_CALLSIGN отсутствует в данных")
+                        skipped += 1
+                        continue
+
                 try:
-                    normalized = self.normalizer.prepare_qso_data(qso_data, my_callsign)
-                    self.logger.debug(f"🔍 Нормализация QSO #{i+1}: успешно нормализован")
+                    normalized = self.normalizer.prepare_qso_data(qso_data, qso_my_callsign)
+                    self.logger.debug(f"🔍 Нормализация QSO #{i+1}: успешно нормализован (my_callsign={qso_my_callsign})")
                     self.logger.debug(f"🔍 Нормализация QSO #{i+1}: app_lotw_rxqsl={normalized.get('app_lotw_rxqsl')} (тип: {type(normalized.get('app_lotw_rxqsl'))})")
                     normalized_list.append(normalized)
                 except Exception as e:

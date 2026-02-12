@@ -88,15 +88,24 @@ class MessageHandler:
             if len(qso_data_from_api) > 5:
                 self.logger.debug(f"🔍 ... и еще {len(qso_data_from_api) - 5} QSO")
 
-            # Обрабатываем данные
+            # Обрабатываем данные: передаём callsign из задачи, или None/unknown если отсутствует
+            # process_qso_batch сам определит my_callsign для каждого QSO из STATION_CALLSIGN
+            my_callsign_for_task = callsign if callsign and callsign != 'unknown' else None
+
+            self.logger.debug(f"🔍 Передаём callsign в process_qso_batch: {my_callsign_for_task}")
+
             result = self.db_ops.process_qso_batch(
                 lotw_result['qso_data'],
-                callsign,  # Используем callsign из задачи как my_callsign
+                my_callsign_for_task,  # Если None - каждое QSO использует свой STATION_CALLSIGN
                 user_id
             )
 
             if result.get('success'):
-                self.stats.increment_processed(callsign, username)
+                # Для статистики используем callsign из задачи или первый STATION_CALLSIGN
+                stats_callsign = callsign if callsign and callsign != 'unknown' else (
+                    qso_data_from_api[0].get('STATION_CALLSIGN', 'unknown') if qso_data_from_api else 'unknown'
+                )
+                self.stats.increment_processed(stats_callsign, username)
                 self.stats.update_qso_stats(
                     added=result.get('qso_added', 0),
                     updated=result.get('qso_updated', 0),
