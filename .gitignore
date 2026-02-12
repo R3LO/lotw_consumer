@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+callsigns_debug.json
 build/
 develop-eggs/
 dist/

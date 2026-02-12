@@ -49,20 +49,35 @@ class ADIFParser:
 
             block = re.sub(r'//.*', '', block)
 
-            pattern = r'<(\w+)(?::(\d+))?>([^<]*)'
+            # Паттерн для полей с указанной длиной: <NAME:5>VALUE
+            pattern_with_length = r'<(\w+):(\d+)>(.{0,\2})'
+            # Паттерн для полей без длины: <NAME>VALUE
+            pattern_without_length = r'<(\w+)>([^<]*)'
+
             qso = {}
             fields_found = []
 
-            matches = re.findall(pattern, block)
+            # Сначала ищем поля с длиной
+            for match in re.finditer(pattern_with_length, block):
+                field_name = match.group(1).upper()
+                length = int(match.group(2))
+                value = match.group(3)[:length].strip()  # Обрезаем до указанной длины
 
-            self.logger.debug(f"🔍 Блок #{block_num}: найдено {len(matches)} полей")
-            for field_name, length, value in matches:
-                field_name = field_name.upper()
+                if value:
+                    qso[field_name] = value
+                    fields_found.append(field_name)
 
-                if length and length.isdigit():
-                    value = value[:int(length)].strip()
-                else:
-                    value = value.strip()
+            # Затем ищем поля без длины
+            for match in re.finditer(pattern_without_length, block):
+                field_name = match.group(1).upper()
+                # Пропускаем, если поле уже найдено (с длиной)
+                if field_name in qso:
+                    continue
+                value = match.group(2).strip()
+
+                if value:
+                    qso[field_name] = value
+                    fields_found.append(field_name)
 
                 if value:
                     qso[field_name] = value
