@@ -50,7 +50,7 @@ class ADIFParser:
             block = re.sub(r'//.*', '', block)
 
             # Паттерн для полей с указанной длиной: <NAME:5>VALUE
-            pattern_with_length = r'<(\w+):(\d+)>(.{0,\2})'
+            pattern_with_length = r'<(\w+):(\d+)>([^<]*)'
             # Паттерн для полей без длины: <NAME>VALUE
             pattern_without_length = r'<(\w+)>([^<]*)'
 
@@ -74,10 +74,6 @@ class ADIFParser:
                 if field_name in qso:
                     continue
                 value = match.group(2).strip()
-
-                if value:
-                    qso[field_name] = value
-                    fields_found.append(field_name)
 
                 if value:
                     qso[field_name] = value
