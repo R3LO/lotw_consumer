@@ -17,8 +17,8 @@ RABBITMQ_USER = os.getenv('RABBITMQ_USER')
 RABBITMQ_PASSWORD = os.getenv('RABBITMQ_PASSWORD')
 
 # Таймауты RabbitMQ (в секундах)
-RABBITMQ_HEARTBEAT = 600  # 10 минут
-RABBITMQ_TIMEOUT = 600    # 10 минут
+RABBITMQ_HEARTBEAT = 7200  #  2 часа
+RABBITMQ_TIMEOUT = 60    # 
 
 # Основная очередь и exchange
 RABBITMQ_QUEUE = os.getenv('RABBITMQ_QUEUE')
